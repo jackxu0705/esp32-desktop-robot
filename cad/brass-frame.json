@@ -1,0 +1,154 @@
+{
+  "source": "source/wiring-1.png 桌面机器人框架图纸尺寸（单位：毫米）",
+  "rodDiameterMm": 1.0,
+  "unit": "mm",
+  "plane": "XY",
+  "vertices": [
+    {
+      "id": "P1",
+      "x": -19.8601,
+      "y": 22.0288
+    },
+    {
+      "id": "P2",
+      "x": 9.1448,
+      "y": 22.0098
+    },
+    {
+      "id": "P3",
+      "x": 28.5253,
+      "y": 1.213
+    },
+    {
+      "id": "P4",
+      "x": 28.5303,
+      "y": -12.806
+    },
+    {
+      "id": "P5",
+      "x": 17.9693,
+      "y": -22.0098
+    },
+    {
+      "id": "P6",
+      "x": -17.0258,
+      "y": -22.0288
+    },
+    {
+      "id": "P7",
+      "x": -28.5303,
+      "y": -10.9332
+    },
+    {
+      "id": "P8",
+      "x": -28.5253,
+      "y": 17.0478
+    }
+  ],
+  "nominalEdges": [
+    {
+      "name": "P1-P2 顶边",
+      "nominalMm": 29.0,
+      "modelMm": 29.0049
+    },
+    {
+      "name": "P2-P3 右上斜边",
+      "nominalMm": 28.41,
+      "modelMm": 28.4273
+    },
+    {
+      "name": "P3-P4 右边",
+      "nominalMm": 14.0,
+      "modelMm": 14.019
+    },
+    {
+      "name": "P4-P5 右下斜边",
+      "nominalMm": 14.0,
+      "modelMm": 14.0087
+    },
+    {
+      "name": "P5-P6 底边",
+      "nominalMm": 35.0,
+      "modelMm": 34.9951
+    },
+    {
+      "name": "P6-P7 左下斜边",
+      "nominalMm": 16.0,
+      "modelMm": 15.9833
+    },
+    {
+      "name": "P7-P8 左边",
+      "nominalMm": 28.0,
+      "modelMm": 27.981
+    },
+    {
+      "name": "P8-P1 左上斜边",
+      "nominalMm": 10.0,
+      "modelMm": 9.9948
+    }
+  ],
+  "nominalAngles": [
+    {
+      "vertex": "P1",
+      "nominalDeg": 150.0,
+      "modelDeg": 150.0709
+    },
+    {
+      "vertex": "P2",
+      "nominalDeg": 133.0,
+      "modelDeg": 133.0187
+    },
+    {
+      "vertex": "P3",
+      "nominalDeg": 137.0,
+      "modelDeg": 137.039
+    },
+    {
+      "vertex": "P4",
+      "nominalDeg": 131.0,
+      "modelDeg": 131.0517
+    },
+    {
+      "vertex": "P5",
+      "nominalDeg": 139.0,
+      "modelDeg": 138.9592
+    },
+    {
+      "vertex": "P6",
+      "nominalDeg": 136.0,
+      "modelDeg": 136.0056
+    },
+    {
+      "vertex": "P7",
+      "nominalDeg": 134.0,
+      "modelDeg": 133.9532
+    },
+    {
+      "vertex": "P8",
+      "nominalDeg": 120.0,
+      "modelDeg": 119.9017
+    }
+  ],
+  "brace": {
+    "from": "P7",
+    "to": "P4",
+    "modelMm": 57.091,
+    "status": "需核对",
+    "note": "图纸中与轮廓同色（绿色）绘制，但未标注长度；长度由标注尺寸推算，需人工核对是否真为杆件。"
+  },
+  "closure": {
+    "rawResidualMm": 0.157,
+    "maxEdgeDeviationMm": 0.019,
+    "note": "走线闭合残差按顶点线性分摊，来源于图纸角度取整。"
+  },
+  "boundingBox": {
+    "widthMm": 57.061,
+    "heightMm": 44.058,
+    "drawingDimensionMm": 44.15,
+    "drawingDimensionNote": "图纸 44.15 为顶边到底边的垂直距离，用作比例交叉校验"
+  },
+  "quantity": {
+    "status": "未确认",
+    "note": "图纸只画一片框架，是否左右各一片未在笔记中说明。"
+  }
+}

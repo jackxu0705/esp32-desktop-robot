@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>桌面机器人 3D 接线核对场景</title>
+<style>
+  :root{
+    --bg:#0f1218; --panel:#171c25; --panel2:#1e242f; --line:#2b3340;
+    --txt:#e6ebf2; --dim:#93a0b4; --warn:#ff5a52; --ok:#3ddc84; --review:#ffb020; --opt:#7f8ea3;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;overflow:hidden}
+  #scene{position:fixed;inset:0}
+  #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+
+  .lbl{background:rgba(15,18,24,.82);border:1px solid var(--line);border-radius:5px;
+    padding:2px 6px;font-size:11px;line-height:1.35;white-space:nowrap;color:var(--txt);
+    transform:translateY(-4px)}
+  .lbl b{font-weight:600}
+  .lbl.part{font-size:12px;font-weight:600;border-left:3px solid var(--ok)}
+  .lbl.part.review{border-left-color:var(--review)}
+  .lbl.part.unconfirmed{border-left-color:var(--warn)}
+  .lbl.part.optional{border-left-color:var(--opt);color:var(--dim)}
+  .lbl.pin{font-size:11px;padding:1px 4px;color:#cfe0f5;background:rgba(12,16,22,.82)}
+  .lbl.wire{font-size:10px;padding:1px 5px;color:#dbe6f5;border-style:dashed}
+  .lbl.wire.unconfirmed{color:#ffd7d4;border-color:var(--warn)}
+  .lbl.wire.review{color:#ffe9c2;border-color:var(--review)}
+  .lbl.callout{font-size:12.5px;font-weight:600;padding:4px 8px;background:rgba(16,22,32,.96);
+    border:1px solid #8ab6ff;border-radius:6px;color:#eaf2ff;white-space:nowrap;
+    box-shadow:0 2px 10px #000a}
+  .lbl.callout em{font-style:normal;color:#9fc4ff;font-weight:400}
+
+  #hud{position:fixed;top:0;left:0;right:0;display:flex;gap:8px;align-items:center;
+    padding:8px 12px;background:linear-gradient(#0f1218e6,#0f121800);flex-wrap:wrap;z-index:20}
+  #hud h1{font-size:14px;margin:0 10px 0 0;font-weight:600;letter-spacing:.5px}
+  .btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:5px 10px;font-size:12px;cursor:pointer;user-select:none}
+  .btn:active{transform:translateY(1px)}
+  .btn.on{background:#26543f;border-color:#3ddc84;color:#d8ffe9}
+  .btn.warn.on{background:#5a2b28;border-color:var(--warn);color:#ffdcd9}
+
+  #legend{position:fixed;left:12px;bottom:12px;background:rgba(23,28,37,.92);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11px;z-index:20;max-width:230px}
+  #legend h3{margin:0 0 6px;font-size:11px;color:var(--dim);font-weight:600}
+  #legend .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+  #legend .sw{width:22px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;flex:0 0 auto}
+  #legend .sw.dash{border-top-style:dashed;border-top-color:var(--warn)}
+  #legend .hide{display:none}
+
+  #side{position:fixed;top:0;right:0;bottom:0;width:340px;background:rgba(23,28,37,.96);
+    border-left:1px solid var(--line);z-index:25;display:flex;flex-direction:column;transition:transform .22s}
+  #side.closed{transform:translateX(100%)}
+  #side header{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;
+    justify-content:space-between;align-items:center;gap:8px}
+  #side header b{font-size:13px}
+  #tabs{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tab{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--dim);cursor:pointer}
+  .tab.on{color:#fff;border-color:#5b7fb8;background:#243349}
+  #detail{padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px;min-height:96px}
+  #detail .kv{display:flex;gap:6px;margin:3px 0}
+  #detail .kv span:first-child{color:var(--dim);flex:0 0 62px}
+  #detail .conn{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  #detail .conn div{padding:2px 0;cursor:pointer;color:#bcd3ee}
+  #detail .conn div:hover{color:#fff}
+  #list{flex:1;overflow:auto;padding:6px 10px 16px}
+  .item{border:1px solid var(--line);border-radius:7px;padding:6px 8px;margin:6px 0;font-size:11.5px;
+    background:#1a2029;cursor:pointer}
+  .item:hover{border-color:#4a6b96}
+  .item.sel{border-color:#8ab6ff;background:#20304a}
+  .item .t{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px}
+  .item .t .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;border:1px solid #0006}
+  .item .m{color:var(--dim);margin-top:3px;line-height:1.5}
+  .item .ev{color:#9fb4cd;margin-top:4px;font-size:11px;line-height:1.5}
+  .tag{font-size:10px;padding:1px 5px;border-radius:4px;border:1px solid;margin-left:auto}
+  .tag.confirmed{color:var(--ok);border-color:#2c6b4a}
+  .tag.review{color:var(--review);border-color:#7a5a1d}
+  .tag.unconfirmed{color:var(--warn);border-color:#7a3330}
+  .tag.optional{color:var(--opt);border-color:#3d4757}
+  .sec{font-size:11px;color:var(--dim);margin:12px 2px 2px;letter-spacing:.5px}
+
+  #tip{position:fixed;pointer-events:none;background:#0b0f16e8;border:1px solid var(--line);
+    border-radius:6px;padding:4px 8px;font-size:11.5px;z-index:40;display:none;max-width:260px}
+  #mask{position:fixed;inset:0;background:#0009;z-index:24;display:none}
+  #sideToggle{display:none}
+
+  @media (min-width:821px){ #hud{right:352px} #scene,#labels{right:340px} }
+  @media (max-width:820px){
+    #side{width:min(88vw,340px);transform:translateX(100%)}
+    #side.open{transform:translateX(0)}
+    #side.closed{transform:translateX(100%)}
+    #sideToggle{display:inline-block}
+    #mask.show{display:block}
+    #legend{max-width:170px;font-size:10px;padding:6px 8px}
+    #hud h1{font-size:12.5px}
+    .btn{padding:4px 8px;font-size:11px}
+  }
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+
+<div id="hud">
+  <h1>桌面机器人 · 3D 接线核对</h1>
+  <button class="btn warn" id="bMode">安全接法</button>
+  <button class="btn" id="bTrans">透明</button>
+  <button class="btn on" id="bExp">接线视图</button>
+  <button class="btn on" id="bLbl">器件标签</button>
+  <button class="btn" id="bPin">接口名：关</button>
+  <button class="btn on" id="bColor">实物线色</button>
+  <button class="btn warn" id="bBad">只看未确认</button>
+  <button class="btn" id="bReset">复位视角</button>
+  <button class="btn" id="sideToggle">核对表</button>
+</div>
+
+<div id="legend">
+  <h3>线路类别（线宽按类别区分）</h3>
+  <div id="legendRows"></div>
+</div>
+
+<div id="mask"></div>
+<aside id="side">
+  <header><b>接线核对侧栏</b><button class="btn" id="sideClose">收起</button></header>
+  <div id="tabs"></div>
+  <div id="detail"></div>
+  <div id="list"></div>
+</aside>
+<div id="tip"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+/* ============================ 数据层 ============================ */
+// 状态：confirmed 已确认 / review 需核对 / unconfirmed 未确认 / optional 可选·未接入
+const ST = {
+  confirmed:{txt:'已确认',color:'#3ddc84'},
+  review:{txt:'需核对',color:'#ffb020'},
+  unconfirmed:{txt:'未确认',color:'#ff5a52'},
+  optional:{txt:'可选/未接入',color:'#7f8ea3'}
+};
+const CAT = {
+  power:{txt:'电源正极',color:'#e5342a',r:1.35},
+  gnd:{txt:'GND/公共地',color:'#2b2f36',r:1.35},
+  i2c:{txt:'I2C',color:'#f2c200',r:0.75},
+  i2s:{txt:'I2S',color:'#4aa3ff',r:0.75},
+  motorCtrl:{txt:'电机控制',color:'#ff8a3d',r:0.75},
+  motorPower:{txt:'电机功率输出',color:'#35c04a',r:1.1},
+  speaker:{txt:'扬声器输出',color:'#a86bd8',r:1.1},
+  unknown:{txt:'未确认线路',color:'#ff2d2d',r:0.95,dash:true}
+};
+// 实物杜邦线颜色（图中所见），bColor 开关用于切回类别配色
+const WIRE = {red:'#d92b2b',black:'#24272c',purple:'#9b5cd6',cyan:'#2fb8e8',
+  yellow:'#f0cf1e',green:'#2fa84f',orange:'#ef8a2b',brown:'#a06a3a'};
+const MODE = new URLSearchParams(location.search).get('mode') === 'safe' ? 'safe' : 'original';
+
+// 框架中心线（mm）：build123d 按 wiring-1.png 标注建模后由 cad/brass-frame.json 导出，此处内联同一组坐标
+const FRAME = {
+  rod:1.0,
+  pts:[[-19.8601,22.0288],[9.1448,22.0098],[28.5253,1.213],[28.5303,-12.806],
+       [17.9693,-22.0098],[-17.0258,-22.0288],[-28.5303,-10.9332],[-28.5253,17.0478]],
+  edges:[29,28.41,14,14,35,16,28,10],
+  angles:[150,133,137,131,139,136,134,120],
+  brace:[6,3]   // P7 -> P4，图纸绿色绘制但未标注长度（需核对）
+};
+
+const BASE_PARTS = [
+  {id:'frame',name:'黄铜棒笼式机身',kind:'frame',pos:[0,0,0],status:'confirmed',
+   note:'两片八边形侧板（58×45mm，含 φ1 棒）+ 横向连接杆组成笼式机身，板间距按视频估为 46mm。轮廓尺寸来自 wiring-1.png，装配关系来自教程视频。',
+   pins:[{n:'框架接地点',x:24,z:-24,y:2}]},
+
+  {id:'esp32',name:'ESP32-C3 SuperMini',kind:'esp32',pos:[0,15,2],rot:[0,0,0],status:'confirmed',
+   note:'装在上层甲板，USB-C 朝上（视频 15.5s 可见）。左列 GPIO5/6/7 走 I2S，GPIO8/9 走 I2C；右列 5V/GND/3.3V/RST + 四根电机控制线。',
+   pins:[
+     {n:'GPIO5',x:-8.85,z:-7},{n:'GPIO6',x:-6.31,z:-7},{n:'GPIO7',x:-3.77,z:-7},
+     {n:'GPIO8',x:-1.23,z:-7},{n:'GPIO9',x:1.31,z:-7},{n:'GPIO4',x:3.85,z:-7},
+     {n:'GPIO3',x:6.39,z:-7},{n:'GPIO21',x:8.93,z:-7},
+     {n:'5V',x:-8.85,z:7},{n:'GND',x:-6.31,z:7},{n:'3.3V',x:-3.77,z:7},{n:'RST',x:-1.23,z:7},
+     {n:'GPIO0',x:1.31,z:7},{n:'GPIO1',x:3.85,z:7},{n:'GPIO2',x:6.39,z:7},
+     {n:'GPIO?（IN4 落脚待核对）',x:8.93,z:7,review:true}]},
+
+  {id:'oled',name:'OLED 显示屏（脸）',kind:'oled',pos:[0,2,-27],rot:[-90,0,0],status:'review',
+   note:'竖装在机头 28mm 高的竖直面上当"脸"（不是 14mm 的短面），视频里显示两个方块眼睛。图上丝印 0.96 INCH 128*64 / SSD1315；笔记正文又要求 1.8 寸 128×160 —— 尺寸冲突待确认，模型为比例占位。',
+   pins:[{n:'GND',x:12,z:-3.81},{n:'VCC',x:12,z:-1.27},{n:'SCL',x:12,z:1.27},{n:'SDA',x:12,z:3.81}]},
+
+  {id:'driver',name:'双路电机驱动模块',kind:'driver',pos:[0,3,2],rot:[0,0,0],status:'review',
+   note:'横装在中层，IN1-IN4 排针朝上（视频 15.5s 可直接读到 IN1/IN2/IN3/IN4 丝印）。笔记写 N298N/L298N 类；图上芯片丝印 MXD1618H、板号 HW-3xx，型号待核对。',
+   pins:[{n:'+',x:-14,z:-8},{n:'-',x:-14,z:-4.5},
+     {n:'IN1',x:-12,z:1.5},{n:'IN2',x:-12,z:4.5},{n:'IN3',x:-12,z:7.5},{n:'IN4',x:-12,z:10},
+     {n:'MOTOR A1',x:14,z:1.5},{n:'MOTOR A2',x:14,z:4.5},
+     {n:'MOTOR B1',x:14,z:7.5},{n:'MOTOR B2',x:14,z:10}]},
+
+  {id:'motorR',name:'N20 电机（右）',kind:'motor',pos:[14,-6,-2],rot:[0,0,0],status:'confirmed',
+   note:'装在右侧板内侧，轴朝外驱动 64T 钢齿轮轮。图上标注"右"，接驱动板 MOTOR A。',
+   pins:[{n:'+',x:-8,z:-3},{n:'-',x:-8,z:3}]},
+  {id:'motorL',name:'N20 电机（左）',kind:'motor',pos:[-14,-6,-2],rot:[0,180,0],status:'confirmed',
+   note:'装在左侧板内侧，轴朝外驱动左侧齿轮轮。图上标注"左"，接驱动板 MOTOR B。',
+   pins:[{n:'+',x:-8,z:-3},{n:'-',x:-8,z:3}]},
+
+  {id:'switch',name:'拨动开关 SS12D00',kind:'switch',pos:[0,20,16],rot:[0,0,0],status:'review',
+   note:'装在机顶后部（视频 27s 可见）。图上三只脚只有两只接红线，第三只空 —— 具体切哪一路电源待核对。',
+   pins:[{n:'脚1',x:-2.5,z:0},{n:'脚2',x:0,z:0},{n:'脚3（空）',x:2.5,z:0}]},
+
+  {id:'amp',name:'MAX98357 功放',kind:'amp',pos:[0,9,-16],rot:[0,0,0],status:'confirmed',
+   note:'装在机头屏幕后方的上层（与喇叭同一端）。图上 SD、GAIN 两只脚空接；VIN 红、GND 黑；DIN/BCLK/LRC 分别为绿/黄/橙。',
+   pins:[{n:'VIN',x:-9,z:-8},{n:'GND',x:-6,z:-8},{n:'SD（空接）',x:-3,z:-8},
+     {n:'GAIN（空接）',x:0,z:-8},{n:'DIN',x:3,z:-8},{n:'BCLK',x:6,z:-8},{n:'LRC',x:9,z:-8},
+     {n:'OUT+',x:2.5,z:8},{n:'OUT-',x:-2.5,z:8}]},
+
+  {id:'speaker',name:'腔体扬声器 24Ω/1W',kind:'speaker',pos:[0,-9,-17],rot:[-90,0,0],status:'confirmed',
+   note:'装在机头、屏幕正后方，朝前出声（位置与屏幕同端）。图上功放喇叭口有 ⊕/⊖ 丝印，红线接 ⊕、黑线接 ⊖，已焊到喇叭两个铜端子。',
+   pins:[{n:'+',x:3,z:-11},{n:'-',x:-3,z:-11}]},
+
+  {id:'charger',name:'Type-C 充电模块',kind:'charger',pos:[0,-20,-2],rot:[0,0,0],status:'review',
+   note:'装在机身尾部下方、电池旁边；视频里机底的蓝光就是它的"放电蓝灯"。图上标注：电池正极 B+、电池负极 B−、输入输出正极、输入输出负极、Type-C 输入输出口、背面另预留输入输出接口、充电绿灯放电蓝灯。',
+   pins:[{n:'B+',x:11,z:-4},{n:'B-',x:11,z:4},
+     {n:'输入输出正极',x:1,z:7.5},{n:'输入输出负极',x:1,z:-7.5},
+     {n:'Type-C 口',x:-12,z:0},{n:'背面预留口',x:-6,z:-7.5}]},
+
+  {id:'battery1',name:'电池 1（尾部·上）',kind:'cell',pos:[0,10,15],rot:[0,0,90],status:'unconfirmed',
+   note:'横躺在机身尾部，**轴向左右、与屏幕平行**（视频 22.5s 可见电芯丝印 ICR18350）。图上丝印 18350 1300mAh 3.7V，配件清单写 14250 平头 —— 型号冲突；串/并联你已判定我读错，现标未确认。',
+   pins:[{n:'+',y:17},{n:'-',y:-17}]},
+  {id:'battery2',name:'电池 2（尾部·下）',kind:'cell',pos:[0,-10,15],rot:[0,0,90],status:'unconfirmed',
+   note:'横躺在电池 1 下方，轴向同样左右、与屏幕平行。串/并联关系未确认；当前 + 接 +、− 接 − 只是图面读法的占位表达，不作为接线依据。',
+   pins:[{n:'+',y:17},{n:'-',y:-17}]},
+
+  {id:'gear1',name:'64T 钢齿轮（右轮）',kind:'gear',pos:[26,-6,-2],rot:[0,0,90],status:'confirmed',
+   note:'右侧驱动轮，与 N20 蜗杆啮合，装在西侧板外。机械件，无接线。',pins:[]},
+  {id:'gear2',name:'64T 钢齿轮（左轮）',kind:'gear',pos:[-26,-6,-2],rot:[0,0,90],status:'confirmed',
+   note:'左侧驱动轮。机械件，无接线。',pins:[]}
+];
+
+// 导线：from/to = [partId, pinName]
+const ORIGINAL_WIRES = [
+  {id:'W1',from:['esp32','GPIO0'],to:['driver','IN1'],sig:'左电机前进 LF',cat:'motorCtrl',
+   color:WIRE.purple,st:'confirmed',ev:'笔记表格第 1 行 GPIO0→IN1(LF)；图上驱动板 IN1 焊盘为紫色线，另一端进 ESP32 右列。'},
+  {id:'W2',from:['esp32','GPIO1'],to:['driver','IN2'],sig:'左电机后退 LB',cat:'motorCtrl',
+   color:WIRE.cyan,st:'confirmed',ev:'笔记表格第 2 行 GPIO1→IN2(LB)；图上 IN2 为青色线。'},
+  {id:'W3',from:['esp32','GPIO2'],to:['driver','IN3'],sig:'右电机前进 RF',cat:'motorCtrl',
+   color:WIRE.yellow,st:'confirmed',ev:'笔记表格第 3 行 GPIO2→IN3(RF)；图上 IN3 为黄色线。'},
+  {id:'W4',from:['esp32','GPIO?（IN4 落脚待核对）'],to:['driver','IN4'],sig:'右电机后退 RB',cat:'motorCtrl',
+   color:WIRE.green,st:'review',
+   ev:'图证：驱动板 IN4 焊盘确有绿色线接入 ESP32 右列最末一脚 —— IN4 已接线，不是缺口。但该脚旁丝印像"0"，与笔记 GPIO0→IN1 的顺序矛盾，故 GPIO 号需人工核对，不按经验补成 GPIO3。'},
+  {id:'W5',from:['esp32','GPIO8'],to:['oled','SDA'],sig:'I2C 数据 SDA',cat:'i2c',
+   color:WIRE.green,st:'confirmed',ev:'笔记表格 GPIO8→OLED SDA；图上 OLED 第 4 脚（SDA）为绿色线。'},
+  {id:'W6',from:['esp32','GPIO9'],to:['oled','SCL'],sig:'I2C 时钟 SCL',cat:'i2c',
+   color:WIRE.yellow,st:'confirmed',ev:'笔记表格 GPIO9→OLED SCL；图上 OLED 第 3 脚（SCL）为黄色线。'},
+  {id:'W7',from:['esp32','GPIO5'],to:['amp','LRC'],sig:'I2S 左右时钟 LRC',cat:'i2s',
+   color:WIRE.orange,st:'confirmed',ev:'笔记表格 GPIO5→MAX98357 LRC（原文即 LRC，属 LRCLK 时钟，不是普通控制脚）；图上 LRC 脚为橙色线。'},
+  {id:'W8',from:['esp32','GPIO6'],to:['amp','BCLK'],sig:'I2S 位时钟 BCLK',cat:'i2s',
+   color:WIRE.yellow,st:'confirmed',ev:'笔记表格 GPIO6→BCLK；图上 BCLK 脚为黄色线。'},
+  {id:'W9',from:['esp32','GPIO7'],to:['amp','DIN'],sig:'I2S 数据 DIN',cat:'i2s',
+   color:WIRE.green,st:'confirmed',ev:'笔记表格 GPIO7→DIN；图上 DIN 脚为绿色线。'},
+
+  {id:'W10',from:['esp32','5V'],to:['driver','+'],sig:'驱动板电源正',cat:'power',
+   color:WIRE.red,st:'confirmed',ev:'图证：ESP32 "5V" 焊盘红线接驱动板 "+" 焊盘。'},
+  {id:'W11',from:['esp32','GND'],to:['driver','-'],sig:'驱动板电源负/公共地',cat:'gnd',
+   color:WIRE.black,st:'confirmed',ev:'图证：ESP32 "G" 焊盘黑线接驱动板 "-" 焊盘。'},
+  {id:'W12',from:['charger','B+'],to:['battery1','+'],sig:'电池正极',cat:'power',
+   color:WIRE.red,st:'confirmed',ev:'图证：充电模块 B+ 红线接电池 1 顶部正极。'},
+  {id:'W13',from:['battery1','+'],to:['battery2','+'],sig:'两节正极短接（图面读作并联）',cat:'power',
+   color:WIRE.red,st:'unconfirmed',ev:'图面 3.5 倍放大后读到：两节电芯顶部 + 极之间一根红线短接。但用户判定与实物不符，已降级为未确认，待教程视频核实后回填，不作为接线依据。'},
+  {id:'W14',from:['battery1','-'],to:['battery2','-'],sig:'两节负极短接（图面读作并联）',cat:'gnd',
+   color:WIRE.black,st:'unconfirmed',ev:'图面读到：两节底部 − 极由黑线短接，并从这条黑线中点再引出一根黑线向左下。同 W13，串/并联结论待视频核实。'},
+  {id:'W15',from:['charger','输入输出正极'],to:['switch','脚2'],sig:'对外供电正 → 开关',cat:'power',
+   color:WIRE.red,st:'review',ev:'图证：开关第 2 脚红线垂直向下走到充电模块"输入输出正极"附近；中间段被标注框遮挡，需核对。'},
+  {id:'W16',from:['switch','脚1'],to:['esp32','5V'],sig:'开关出线 → 5V 轨（推断）',cat:'power',
+   color:WIRE.red,st:'unconfirmed',ev:'图上开关第 1 脚红线向左下走线后与多条红线重叠，终点不可辨。此处仅为占位走向，禁止当作已核实结论。'},
+  {id:'W17',from:['charger','输入输出负极'],to:['battery2','-'],sig:'对外供电负 → 公共地',cat:'gnd',
+   color:WIRE.black,st:'review',ev:'图证：充电模块处黑线向下接入底部横贯黑线，该黑线另一端为电池负极；具体接"输入输出负极"还是 Type-C 口需核对。'},
+  {id:'W18',from:['esp32','3.3V'],to:['amp','VIN'],sig:'3.3V 供功放',cat:'power',
+   color:WIRE.red,st:'review',ev:'图证：ESP32 "3.3" 焊盘有红线向左；MAX98357 VIN 为红线。两端对应关系被走线遮挡，需核对是否 5V 而非 3.3V。'},
+  {id:'W19',from:['amp','GND'],to:['esp32','GND'],sig:'功放地',cat:'gnd',
+   color:WIRE.black,st:'review',ev:'图证：MAX98357 GND 为黑线，向上走线后与 ESP32 GND 黑线区重叠，落点需核对。'},
+  {id:'W20',from:['oled','VCC'],to:['esp32','5V'],sig:'OLED VCC',cat:'power',
+   color:WIRE.red,st:'review',ev:'图证：OLED VCC 红线向右，终点被遮挡；按笔记 TOF 标注框写 VIN=5V，OLED 供电是否同为 5V 需核对。'},
+  {id:'W21',from:['oled','GND'],to:['frame','框架接地点'],sig:'OLED GND → 框架/电池负',cat:'gnd',
+   color:WIRE.black,st:'confirmed',ev:'图上原标注文字："焊接框架或者电池负极"，黑线自 OLED GND 引出。'},
+
+  {id:'W22',from:['driver','MOTOR A1'],to:['motorR','+'],sig:'A 通道输出 → 右电机 +',cat:'motorPower',
+   color:WIRE.red,st:'confirmed',ev:'图证：MOTOR A 上焊盘红线接上方电机 + 端子（图上该电机旁标"右"）。'},
+  {id:'W23',from:['driver','MOTOR A2'],to:['motorR','-'],sig:'A 通道输出 → 右电机 −',cat:'motorPower',
+   color:WIRE.black,st:'confirmed',ev:'图证：MOTOR A 下焊盘黑线接上方电机 − 端子。'},
+  {id:'W24',from:['driver','MOTOR B1'],to:['motorL','+'],sig:'B 通道输出 → 左电机 +',cat:'motorPower',
+   color:WIRE.red,st:'confirmed',ev:'图证：MOTOR B 上焊盘红线接下方电机 + 端子（图上该电机旁标"左"）。'},
+  {id:'W25',from:['driver','MOTOR B2'],to:['motorL','-'],sig:'B 通道输出 → 左电机 −',cat:'motorPower',
+   color:WIRE.black,st:'confirmed',ev:'图证：MOTOR B 下焊盘黑线接下方电机 − 端子。'},
+
+  {id:'W26',from:['amp','OUT+'],to:['speaker','+'],sig:'扬声器正',cat:'speaker',
+   color:WIRE.red,st:'confirmed',ev:'图证：功放喇叭口 ⊕ 侧焊盘为红线，接到扬声器铜端子。'},
+  {id:'W27',from:['amp','OUT-'],to:['speaker','-'],sig:'扬声器负',cat:'speaker',
+   color:WIRE.black,st:'confirmed',ev:'图证：功放喇叭口 ⊖ 侧焊盘为黑线，接到扬声器另一铜端子。'}
+];
+
+const BASE_LOGIC = [
+  {lv:'risk', t:'功放 VIN 若取自 3.3V，电流余量不足',
+   d:'图上 ESP32 的 "3.3" 脚有红线出到功放方向。MAX98357 工作电压 2.75–5.5V，接 3.3V 本身合法；但 SuperMini 板载 3.3V LDO 要同时供 MCU（WiFi 峰值可达 300mA+）和功放（24Ω/1W 峰值电流不小），3.3V 轨会被拉跨。建议功放 VIN 直接接电池/5V 轨。当前按图保留，标为需核对。'},
+  {lv:'risk', t:'电机功率从 ESP32 的 5V 排针过流',
+   d:'图上驱动板 "+" 的红线接在 ESP32 的 "5V" 脚。该脚在 SuperMini 上就是 USB VBUS 直通节点，两路电机的电流要经过板上的细铜箔，且插 Type-C 调试时会出现两路电源并联冲突。功能上能跑，但不是好的供电取点。'},
+  {lv:'risk', t:'GPIO0 带负载会影响启动模式',
+   d:'笔记把 GPIO0→IN1，而 IN4 那根绿线落点旁的丝印又像 "0"。GPIO0 是 C3 的 BOOT 选择脚，上电瞬间若被驱动板输入级拉偏，会进不了正常启动或卡在下载模式。无论哪根线落在 GPIO0，都建议实测确认。'},
+  {lv:'ok', t:'I2S 三线齐全，LRC 不是普通控制脚',
+   d:'LRC(LRCLK)/BCLK/DIN 三根都在，MAX98357 才能出声；笔记原文写作 LRC 属同一信号，未误画成电源脚 ✓。SD、GAIN 空接 → 功放上电默认使能、增益由芯片默认值决定，逻辑上可工作。'},
+  {lv:'ok', t:'I2C 只有一组 SDA/SCL，OLED 与 TOF 本应共总线',
+   d:'OLED 的 SDA/SCL 走 GPIO8/GPIO9 ✓。TOF 未购买、本次不接入，所以图上那对蓝/棕线不再需要落点，原先"四根线抢两个脚"的矛盾随之消失。'},
+  {lv:'ok', t:'双 H 桥通道划分自洽',
+   d:'IN1/IN2 → MOTOR A，IN3/IN4 → MOTOR B，符合 MXD1618H 这类双路驱动的标准用法 ✓。但"左/右电机"的口径与笔记表格冲突（见待核对清单）。'},
+  {lv:'ok', t:'开关接法在电气上成立',
+   d:'SS12D00 三只脚中，中间脚是刀闸公共端，两侧是触点。图上只接了相邻两只（公共端 + 一个触点）= 单刀单掷切一路电源 ✓ 逻辑成立；但切的是正极还是负极仍未确认。'},
+  {lv:'wait', t:'电池串/并联未定',
+   d:'1S 充电模块只有 B+/B− 一组电池焊盘，逻辑上两节只能并联才能被充电；串联(7.4V) 会导致模块无法均衡充电、且后级 5V 轨超压。图面读作并联但你判定不符 —— 以视频/实物为准，当前两条短接线均标为未确认。'}
+];
+
+const BASE_WARNINGS = [
+  {st:'review',t:'IN4 的 GPIO 号未定',d:'图证 IN4 已接绿色线到 ESP32 右列最末脚，但该脚丝印与笔记 GPIO0→IN1 顺序冲突。不补成 GPIO3，需人工核对实物排针。'},
+  {st:'review',t:'电机通道左右对应冲突',d:'图上 IN1/IN2 → MOTOR A → 上方电机（旁标"右"），IN3/IN4 → MOTOR B → 下方电机（旁标"左"）；笔记表格却写 IN1/IN2=左电机、IN3=右电机。二者必有一处口径不一致。'},
+  {st:'unconfirmed',t:'电源完整路径未确认',d:'电池 → 充电模块 → 拨动开关 → ESP32 5V / 驱动板 + 的先后顺序在图中被红线重叠遮挡，未逐段确认。'},
+  {st:'review',t:'开关切哪一路未确认',d:'SS12D00 三只脚只有两只接红线、第三只空，无法判断是切正极还是切地。'},
+  {st:'review',t:'电池型号冲突',d:'配件清单：14250 平头；接线图电芯丝印：18350 1300mAh 3.7V。'},
+  {st:'review',t:'OLED 尺寸冲突',d:'清单与图上丝印均为 0.96 英寸 128×64；笔记正文又写"显示屏一定是 1.8 寸 128*160"。3D 模型为比例占位，尺寸待确认。'},
+  {st:'review',t:'驱动模块型号存疑',d:'笔记写 N298N/L298N 类；图上芯片丝印 MXD1618H、板号 HW-3xx。场景中使用"双路电机驱动模块"中性名称。'},
+  {st:'review',t:'框架斜撑与数量未确认',d:'框架图内有一条与轮廓同色的 P7–P4 线（推算 57.09mm），未标注尺寸；且图纸只画一片，是否左右各一片未说明。'},
+  {st:'optional',t:'TOF050C/VL6180 未购买，本次不接入',d:'原图含 TOF 的红/黑/蓝/棕四根线（标注 VIN=5V、GND=GND、SDA=GPIO8、SCL=GPIO9）。用户确认未购买该模块，本场景不绘制其器件与走线；蓝/棕两线不适用。'},
+  {st:'optional',t:'ASRPro / 小水滴 AI 模块未接入',d:'笔记标注为可选套件，未提供接线证据，本场景不绘制。'},
+  {st:'confirmed',t:'MAX98357 的 SD、GAIN 空接',d:'图上这两只脚没有焊线。若后续需要硬件静音/增益控制，需自行补线并重新核对。'}
+];
+
+/* ============================ 安全参考接法 ============================ */
+// 前提：两节同型号电芯并联为 1S；Type-C 模块实测为 5V 稳压输出；SS12D00G3 只控 P-MOS 栅极。
+const SAFE_EXTRAS = [
+  {id:'bms',name:'1S 保护板 2A',kind:'bms',pos:[0,-24,15],status:'confirmed',
+   note:'两节电芯先各自确认压差，再并到 B+/B−；P+/P− 为保护后的总输出。保护板持续电流按 ≥3A 选型，不能用无保护裸并联。',
+   pins:[{n:'B+',x:-8,z:-4},{n:'B-',x:-8,z:4},{n:'P+',x:8,z:-4},{n:'P-',x:8,z:4}]},
+  {id:'fuse',name:'3A 自恢复保险',kind:'fuse',pos:[15,-20,8],status:'confirmed',
+   note:'装在保护板 P+ 之后、充电模块 B+ 之前。线径用 22AWG 或更粗；保险额定值要低于导线和连接器的持续能力。',
+   pins:[{n:'IN',x:-5,z:0},{n:'OUT',x:5,z:0}]},
+  {id:'pmos',name:'P-MOS 高侧开关',kind:'pmos',pos:[10,18,14],status:'confirmed',
+   note:'AO3401 一类 P-MOS：S 接 5V 输入，D 接负载，G 由 SS12D00G3 下拉开启；G-S 加 100k 上拉、G 串 1k。小开关只过栅极电流，不承担电机电流。',
+   pins:[{n:'S',x:-5,z:-4},{n:'D',x:5,z:-4},{n:'G',x:-5,z:4}]},
+  {id:'buck',name:'5V→3V 3A 降压',kind:'buck',pos:[15,-20,-8],status:'confirmed',
+   note:'给两路 N20 电机供电，输出设为 3.0V。持续电流按 ≥3A 选型，输入端加 100µF 电解 + 0.1µF 陶瓷电容。',
+   pins:[{n:'IN+',x:-8,z:-4},{n:'IN-',x:-8,z:4},{n:'OUT+',x:8,z:-4},{n:'OUT-',x:8,z:4}]},
+  {id:'pulldown',name:'4×10k 下拉排',kind:'pulldown',pos:[0,5,2],status:'confirmed',
+   note:'IN1–IN4 各经 10k 下拉到 GND，保证 ESP32 复位和下载时电机不会乱转。',
+   pins:[{n:'IN1',x:-6,z:-4},{n:'IN2',x:-2,z:-4},{n:'IN3',x:2,z:-4},{n:'IN4',x:6,z:-4},{n:'GND',x:0,z:5}]}
+];
+
+const SAFE_OVERRIDES = {
+  esp32:{
+    note:'安全接法：电机控制改为 GPIO0/1/3/4；OLED I2C 改为 GPIO20/21；I2S 仍为 GPIO5/6/7。GPIO2/8/9 不接负载，GPIO9 留给 BOOT 键。',
+    pins:[...BASE_PARTS.find(p => p.id === 'esp32').pins,{n:'GPIO20',x:11.47,z:-7}]
+  },
+  driver:{
+    status:'confirmed',
+    note:'双路 H 桥，MOTOR A 明确接右电机、MOTOR B 接左电机；VM 改由 5V→3V 降压供电，不再从 ESP32 的 5V 焊盘取电。'
+  },
+  switch:{
+    name:'拨动开关 SS12D00G3',
+    status:'confirmed',
+    note:'三脚两档只作为 P-MOS 栅极控制：脚 2 接栅极，脚 1 接 GND，脚 3 空。电机和功放电流不经过这只小开关。'
+  },
+  amp:{
+    status:'confirmed',
+    note:'安全接法：VIN 改接 P-MOS 后的 5V 轨；SD 经 100k 接 3.3V 保持开启，GAIN 经 100k 接地降低增益；OUT+/OUT− 仍直连喇叭，不能接地。',
+    pins:[
+      {n:'VIN',x:-9,z:-8},{n:'GND',x:-6,z:-8},{n:'SD',x:-3,z:-8},{n:'GAIN',x:0,z:-8},
+      {n:'DIN',x:3,z:-8},{n:'BCLK',x:6,z:-8},{n:'LRC',x:9,z:-8},
+      {n:'OUT+',x:2.5,z:8},{n:'OUT-',x:-2.5,z:8}
+    ]
+  },
+  charger:{
+    status:'confirmed',
+    note:'Type-C 模块输出按你确认的 5V 稳压处理：B+/B− 接待保护电池，输入输出正/负极作为 5V 负载母线。仍需确认模块持续输出电流 ≥3A 且支持边充边用。'
+  },
+  battery1:{
+    status:'review',
+    note:'按本次确认改为双节并联 1S 的上节。并联前两节必须同型号、同容量，静置压差 ≤0.02V；否则先单独充满再并。'
+  },
+  battery2:{
+    status:'review',
+    note:'按本次确认改为双节并联 1S 的下节。禁止不同容量、不同老化程度的电芯直接并联。'
+  },
+  motorR:{status:'confirmed',note:'右侧驱动轮。安全版明确由 MOTOR A 驱动，不再沿用左右通道含糊口径。'},
+  motorL:{status:'confirmed',note:'左侧驱动轮。安全版明确由 MOTOR B 驱动。'}
+};
+
+const SAFE_PARTS = [
+  ...BASE_PARTS.map(p => {
+    const o = SAFE_OVERRIDES[p.id];
+    return o ? {...p, ...o, pins:o.pins || p.pins} : p;
+  }),
+  ...SAFE_EXTRAS
+];
+
+const SAFE_WIRES = [
+  {id:'S1',from:['battery1','+'],to:['bms','B+'],sig:'电池 1 正 → 保护板',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'双节并联 1S：每节正极先独立确认压差，再并到保护板 B+。'},
+  {id:'S2',from:['battery2','+'],to:['bms','B+'],sig:'电池 2 正 → 保护板',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'第二节正极与第一节在 B+ 节点汇合；两节必须同型号、同容量。'},
+  {id:'S3',from:['battery1','-'],to:['bms','B-'],sig:'电池 1 负 → 保护板',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'每节负极独立回到保护板 B−，不要只在一节端子上串接。'},
+  {id:'S4',from:['battery2','-'],to:['bms','B-'],sig:'电池 2 负 → 保护板',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'第二节负极与第一节在 B− 节点汇合，形成 1S 并联包。'},
+  {id:'S5',from:['bms','P+'],to:['fuse','IN'],sig:'保护后正极 → 3A 保险',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'所有充电与放电电流都先经过 3A 自恢复保险。'},
+  {id:'S6',from:['fuse','OUT'],to:['charger','B+'],sig:'保险后正极 → 模块 B+',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'Type-C 模块的电池端 B+ 接保护后的正极，不在裸电芯端直接取电。'},
+  {id:'S7',from:['bms','P-'],to:['charger','B-'],sig:'保护后负极 → 模块 B−',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'模块 B− 接保护板 P−，充放电都经过 1S 保护。'},
+  {id:'S8',from:['charger','输入输出正极'],to:['pmos','S'],sig:'模块 5V → P-MOS 源极',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'Type-C 模块输出实测为 5V 稳压；先进入 P-MOS 高侧开关，再分配到负载。'},
+  {id:'S9',from:['pmos','D'],to:['esp32','5V'],sig:'开关后 5V → ESP32',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'ESP32 只从开关后的 5V 轨取电，不再反向给电机或功放供电。'},
+  {id:'S10',from:['pmos','D'],to:['amp','VIN'],sig:'开关后 5V → 功放 VIN',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'MAX98357 改由 5V 轨供电，避开 SuperMini 3.3V LDO 的电流余量问题。'},
+  {id:'S11',from:['pmos','D'],to:['buck','IN+'],sig:'开关后 5V → 3V 降压输入',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'电机电源单独经过 5V→3V 降压，ESP32 的 5V 焊盘不再承担电机电流。'},
+  {id:'S12',from:['switch','脚2'],to:['pmos','G'],sig:'SS12D00G3 → P-MOS 栅极',cat:'motorCtrl',color:WIRE.orange,st:'confirmed',
+   ev:'开关脚 2 只驱动 P-MOS 栅极；栅极有 100k 上拉，默认关断。'},
+  {id:'S13',from:['switch','脚1'],to:['charger','输入输出负极'],sig:'开关触点 → GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'开关拨到 ON 时把 P-MOS 栅极拉低；脚 3 空置。小开关不承载负载电流。'},
+  {id:'S14',from:['charger','输入输出负极'],to:['esp32','GND'],sig:'5V 母线负极 → ESP32 GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'以模块 5V 输出负极为公共地星点，ESP32 单独回星点。'},
+  {id:'S15',from:['charger','输入输出负极'],to:['amp','GND'],sig:'5V 母线负极 → 功放 GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'功放地单独回星点，避免电机电流在音频地线上产生压降和噪声。'},
+  {id:'S16',from:['charger','输入输出负极'],to:['buck','IN-'],sig:'5V 母线负极 → 降压 GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'降压输入地回公共星点。'},
+  {id:'S17',from:['charger','输入输出负极'],to:['driver','-'],sig:'5V 母线负极 → 驱动板 GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'电机大电流回路单独回星点，不穿过 ESP32 地焊盘。'},
+  {id:'S18',from:['charger','输入输出负极'],to:['oled','GND'],sig:'5V 母线负极 → OLED GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'OLED 地改为直接回电池/模块负极，不再把黄铜框架当回路线。'},
+  {id:'S19',from:['charger','输入输出负极'],to:['pulldown','GND'],sig:'5V 母线负极 → 下拉排 GND',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'四只 10k 下拉电阻共地。'},
+  {id:'S20',from:['esp32','GPIO0'],to:['driver','IN1'],sig:'右电机前进（安全脚）',cat:'motorCtrl',color:WIRE.purple,st:'confirmed',
+   ev:'IN1→GPIO0；GPIO0 在 ESP32-C3 上不是 strapping 脚，并加 10k 下拉。'},
+  {id:'S21',from:['esp32','GPIO1'],to:['driver','IN2'],sig:'右电机后退（安全脚）',cat:'motorCtrl',color:WIRE.cyan,st:'confirmed',
+   ev:'IN2→GPIO1，并加 10k 下拉。'},
+  {id:'S22',from:['esp32','GPIO3'],to:['driver','IN3'],sig:'左电机前进（安全脚）',cat:'motorCtrl',color:WIRE.yellow,st:'confirmed',
+   ev:'IN3 从 GPIO2 改到 GPIO3，避开 C3 的 strapping 脚，并加 10k 下拉。'},
+  {id:'S23',from:['esp32','GPIO4'],to:['driver','IN4'],sig:'左电机后退（安全脚）',cat:'motorCtrl',color:WIRE.green,st:'confirmed',
+   ev:'IN4 明确落在 GPIO4，不再保留“GPIO 待核对”，并加 10k 下拉。'},
+  {id:'S24',from:['driver','IN1'],to:['pulldown','IN1'],sig:'IN1 10k 下拉',cat:'motorCtrl',color:WIRE.orange,st:'confirmed',
+   ev:'上电复位期间把 IN1 拉到 GND，防止电机瞬间动作。'},
+  {id:'S25',from:['driver','IN2'],to:['pulldown','IN2'],sig:'IN2 10k 下拉',cat:'motorCtrl',color:WIRE.orange,st:'confirmed',
+   ev:'上电复位期间把 IN2 拉到 GND。'},
+  {id:'S26',from:['driver','IN3'],to:['pulldown','IN3'],sig:'IN3 10k 下拉',cat:'motorCtrl',color:WIRE.orange,st:'confirmed',
+   ev:'上电复位期间把 IN3 拉到 GND。'},
+  {id:'S27',from:['driver','IN4'],to:['pulldown','IN4'],sig:'IN4 10k 下拉',cat:'motorCtrl',color:WIRE.orange,st:'confirmed',
+   ev:'上电复位期间把 IN4 拉到 GND。'},
+  {id:'S28',from:['esp32','GPIO20'],to:['oled','SDA'],sig:'I2C 数据 SDA（安全脚）',cat:'i2c',color:WIRE.green,st:'confirmed',
+   ev:'I2C 从 GPIO8 改到 GPIO20，避开 strapping 脚。'},
+  {id:'S29',from:['esp32','GPIO21'],to:['oled','SCL'],sig:'I2C 时钟 SCL（安全脚）',cat:'i2c',color:WIRE.yellow,st:'confirmed',
+   ev:'I2C 从 GPIO9 改到 GPIO21，把 GPIO9 留给 BOOT 键。'},
+  {id:'S30',from:['esp32','GPIO5'],to:['amp','LRC'],sig:'I2S 左右时钟 LRC',cat:'i2s',color:WIRE.orange,st:'confirmed',
+   ev:'保留原 I2S 引脚 GPIO5→LRC。'},
+  {id:'S31',from:['esp32','GPIO6'],to:['amp','BCLK'],sig:'I2S 位时钟 BCLK',cat:'i2s',color:WIRE.yellow,st:'confirmed',
+   ev:'保留原 I2S 引脚 GPIO6→BCLK。'},
+  {id:'S32',from:['esp32','GPIO7'],to:['amp','DIN'],sig:'I2S 数据 DIN',cat:'i2s',color:WIRE.green,st:'confirmed',
+   ev:'保留原 I2S 引脚 GPIO7→DIN。'},
+  {id:'S33',from:['esp32','3.3V'],to:['amp','SD'],sig:'SD 使能（串 100k）',cat:'power',color:WIRE.orange,st:'confirmed',
+   ev:'SD 经 100k 接 3.3V，上电即开启功放，避免空接时进入关断。'},
+  {id:'S34',from:['amp','GAIN'],to:['charger','输入输出负极'],sig:'GAIN 设低（串 100k）',cat:'gnd',color:WIRE.black,st:'confirmed',
+   ev:'GAIN 经 100k 接地，降低增益和削波风险；具体增益以模块丝印为准。'},
+  {id:'S35',from:['oled','VCC'],to:['esp32','3.3V'],sig:'OLED VCC → 3.3V',cat:'power',color:WIRE.red,st:'confirmed',
+   ev:'OLED 明确接 3.3V，不再接 5V。'},
+  {id:'S36',from:['buck','OUT+'],to:['driver','+'],sig:'3V → 驱动板 VM',cat:'motorPower',color:WIRE.red,st:'confirmed',
+   ev:'N20 额定 3V；电机功率由独立降压供电，避免 5V 过压和 ESP32 板载走线过流。'},
+  {id:'S37',from:['driver','MOTOR A1'],to:['motorR','+'],sig:'右电机 +',cat:'motorPower',color:WIRE.red,st:'confirmed',
+   ev:'MOTOR A 固定为右电机。'},
+  {id:'S38',from:['driver','MOTOR A2'],to:['motorR','-'],sig:'右电机 −',cat:'motorPower',color:WIRE.black,st:'confirmed',
+   ev:'MOTOR A 固定为右电机。'},
+  {id:'S39',from:['driver','MOTOR B1'],to:['motorL','+'],sig:'左电机 +',cat:'motorPower',color:WIRE.red,st:'confirmed',
+   ev:'MOTOR B 固定为左电机。'},
+  {id:'S40',from:['driver','MOTOR B2'],to:['motorL','-'],sig:'左电机 −',cat:'motorPower',color:WIRE.black,st:'confirmed',
+   ev:'MOTOR B 固定为左电机。'},
+  {id:'S41',from:['amp','OUT+'],to:['speaker','+'],sig:'BTL 输出 +',cat:'speaker',color:WIRE.red,st:'confirmed',
+   ev:'BTL 桥接输出直连喇叭 +，不得接地。'},
+  {id:'S42',from:['amp','OUT-'],to:['speaker','-'],sig:'BTL 输出 −',cat:'speaker',color:WIRE.black,st:'confirmed',
+   ev:'BTL 桥接输出直连喇叭 −，不得接地或接框架。'}
+];
+
+const SAFE_LOGIC = [
+  {lv:'ok',t:'电机不再吃 ESP32 的 5V 焊盘',d:'驱动板 VM 由独立 5V→3V 3A 降压供电，ESP32 5V 只负责自身，避免板载铜箔过流和 USB 供电冲突。'},
+  {lv:'ok',t:'功放改吃 5V，不占 3.3V LDO',d:'MAX98357 VIN 接 P-MOS 后的 5V 轨；OLED 仍用 3.3V。SuperMini 的 3.3V LDO 不再同时承担 WiFi 峰值和音频峰值。'},
+  {lv:'ok',t:'控制脚避开 C3 strapping',d:'电机使用 GPIO0/1/3/4，I2C 使用 GPIO20/21，I2S 保持 GPIO5/6/7；GPIO2/8/9 不接负载，GPIO9 留作 BOOT。'},
+  {lv:'ok',t:'SS12D00G3 不承载负载电流',d:'开关只把 P-MOS 栅极拉到 GND，栅极由 100k 上拉；电机、功放和 ESP32 的电流走 P-MOS 与保险，不经过 0.3A 级小开关触点。'},
+  {lv:'ok',t:'共地采用星形回电池/模块负极',d:'ESP32、功放、OLED、驱动板、降压和下拉排分别回公共负极；黄铜框架不充当电流回路。'},
+  {lv:'ok',t:'BTL 喇叭不接地',d:'MAX98357 的 OUT+/OUT− 只接扬声器两端，任一端接地都会破坏桥接输出。'},
+  {lv:'wait',t:'双节并联仍取决于电芯一致性',d:'同型号、同容量、静置压差 ≤0.02V 才允许并；长期使用后若压差变大，需要拆开单独平衡。'},
+  {lv:'risk',t:'5V 模块与保险必须匹配负载',d:'两路 N20 同时堵转、功放峰值和 WiFi 峰值可能叠加。模块持续输出需 ≥3A，功率线用 22AWG 以上，保险按实测电流选。'},
+  {lv:'wait',t:'边充边用能力未验证',d:'若模块没有电源路径管理，充电时带载可能发热或超规格；在确认前，充电时把开关置 OFF，或只充不用。'}
+];
+
+const SAFE_WARNINGS = [
+  {st:'review',t:'双节并联的硬性前提',d:'两节必须同型号、同容量、相近内阻，并联前压差 ≤0.02V，并经过 1S 保护板。不同老化程度的电芯直接并联会产生环流。'},
+  {st:'review',t:'5V 模块持续电流与边充边用',d:'按你确认它是 5V 稳压输出，但还需核对铭牌/实测持续电流 ≥3A，并确认充电时带载是否允许。'},
+  {st:'review',t:'线径、保险与 P-MOS 选型',d:'电池到模块、P-MOS、降压的功率线用 22AWG 以上；保险 3A 仅作示例，最终按实测堵转电流和模块能力确定。'},
+  {st:'review',t:'N20 堵转电流未实测',d:'3A 降压和保险按常见 1812-N20 估算；若两只电机同时堵转超过能力，需要更大裕量或软件限流。'},
+  {st:'review',t:'OLED 实际尺寸',d:'清单与丝印为 0.96 英寸 128×64，笔记正文又写 1.8 寸 128×160；电气接法不受影响，结构开孔仍需实物确认。'},
+  {st:'review',t:'框架斜撑与侧板数量',d:'P7–P4 是否为真实杆件、左右侧板连接杆数量仍需按实物确认；框架不参与导电。'},
+  {st:'review',t:'电池型号与容量',d:'配件清单 14250、电芯丝印 18350；并联方案要求两节实物完全一致，先核对型号和容量。'},
+  {st:'confirmed',t:'安全 GPIO 已避开启动脚',d:'GPIO2/8/9 不接负载；电机 GPIO0/1/3/4 各加 10k 下拉，I2C 改 GPIO20/21。'},
+  {st:'confirmed',t:'功放 SD/GAIN 不再空接',d:'SD 经 100k 上拉 3.3V 保持开启，GAIN 经 100k 接地。'},
+  {st:'optional',t:'TOF050C/VL6180 未购买，本次不接入',d:'不绘制器件与走线。'},
+  {st:'optional',t:'ASRPro / 小水滴 AI 模块未接入',d:'未提供接线证据，本场景不绘制。'}
+];
+
+const PARTS = MODE === 'safe' ? SAFE_PARTS : BASE_PARTS;
+const WIRES = MODE === 'safe' ? SAFE_WIRES : ORIGINAL_WIRES;
+const LOGIC = MODE === 'safe' ? SAFE_LOGIC : BASE_LOGIC;
+const WARNINGS = MODE === 'safe' ? SAFE_WARNINGS : BASE_WARNINGS;
+
+/* ============================ 场景 ============================ */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1218);
+scene.fog = new THREE.Fog(0x0f1218, 420, 1400);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 4000);
+camera.position.set(-40, 190, 250);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('scene').appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer({element:document.getElementById('labels')});
+
+function sizeViews(){
+  const el = document.getElementById('scene');
+  const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  return w / h;
+}
+sizeViews();
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = .08;
+controls.target.set(20, 10, -10);
+controls.minDistance = 40;
+controls.maxDistance = 900;
+controls.maxPolarAngle = Math.PI * .495;
+
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x20262e, .75));
+const key = new THREE.DirectionalLight(0xffffff, 1.5);
+key.position.set(-120, 260, 160);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -320; key.shadow.camera.right = 320;
+key.shadow.camera.top = 320; key.shadow.camera.bottom = -320;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, .45);
+fill.position.set(200, 120, -180);
+scene.add(fill);
+
+const table = new THREE.Mesh(new THREE.PlaneGeometry(1300, 950),
+  new THREE.MeshStandardMaterial({color:0x151a22, roughness:.95, metalness:0}));
+table.rotation.x = -Math.PI/2;
+table.position.set(-90, -29.5, 0);
+table.receiveShadow = true;
+scene.add(table);
+const grid = new THREE.GridHelper(1200, 60, 0x2a3444, 0x1d2430);
+grid.position.set(-90, -29.4, 0);
+scene.add(grid);
+
+/* ---------- 建模工具 ---------- */
+const pickables = [];
+const partGroups = {};
+const pinIndex = {};      // "part|pin" -> {mesh, world:Vector3}
+const wireObjs = [];      // {def, mesh, label, mats}
+const std = (c, extra={}) => new THREE.MeshStandardMaterial(
+  Object.assign({color:new THREE.Color(c), roughness:.55, metalness:.25}, extra));
+const ORIG = Symbol('orig');
+
+function addMesh(group, geo, mat, pos, rot, name){
+  const m = new THREE.Mesh(geo, mat);
+  if(pos) m.position.set(...pos);
+  if(rot) m.rotation.set(...rot);
+  m.castShadow = true; m.receiveShadow = true;
+  m.userData.baseOpacity = 1;
+  group.add(m);
+  return m;
+}
+function pinMesh(part, p, i = 0){
+  const g = partGroup(part);
+  const px = p.x ?? 0, pz = p.z ?? 0, y = p.y ?? 4.2;
+  const gold = std(p.review ? 0xffb020 : 0xd9b45a, {metalness:.85, roughness:.28});
+
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(2.6, .5, 2.6), gold);   // 焊盘：可点、可看
+  pad.position.set(px, y, pz);
+  pad.castShadow = true;
+  pad.userData = {pick:'pin', partId:part.id, pin:p.n, baseOpacity:1};
+  g.add(pad); pickables.push(pad);
+
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(.5, .5, 3.2, 10), gold);
+  post.position.set(px, y + 1.85, pz);
+  post.userData = {pick:'pin', partId:part.id, pin:p.n, baseOpacity:1};
+  g.add(post); pickables.push(post);
+
+  // 标签朝焊盘外侧让开，避免压在板子上
+  const n = Math.hypot(px, pz);
+  const dirx = n > 2 ? px / n : 0, dirz = n > 2 ? pz / n : 0;
+  const lbl = makeLabel(p.n, 'lbl pin');
+  lbl.position.set(px + dirx * 6, y + 4.4 + (i % 3) * 3.4 + (n > 2 ? 0 : 3), pz + dirz * 6);
+  g.add(lbl);
+
+  pinIndex[part.id + '|' + p.n] = {mesh:pad, group:g,
+    local:new THREE.Vector3(px, y + 1.2, pz), label:lbl};
+}
+function partGroup(part){
+  if(!partGroups[part.id]){
+    const g = new THREE.Group();
+    g.position.set(...part.pos);
+    if(part.rot) g.rotation.set(THREE.MathUtils.degToRad(part.rot[0]),
+                                THREE.MathUtils.degToRad(part.rot[1]),
+                                THREE.MathUtils.degToRad(part.rot[2]));
+    g.userData = {pick:'part', partId:part.id, home:new THREE.Vector3(...part.pos)};
+    scene.add(g);
+    partGroups[part.id] = g;
+  }
+  return partGroups[part.id];
+}
+function makeLabel(html, cls){
+  const d = document.createElement('div');
+  d.className = cls;
+  d.innerHTML = html;
+  return new CSS2DObject(d);
+}
+
+/* ---------- 器件外形 ---------- */
+function buildPart(part){
+  const g = partGroup(part);
+  switch(part.kind){
+    case 'esp32': {
+      addMesh(g, new THREE.BoxGeometry(22,2,19), std(0x1b1d22, {roughness:.8}), [0,2,0]);
+      addMesh(g, new THREE.BoxGeometry(9,4.5,8), std(0xb5b8bd, {metalness:.85, roughness:.35}), [0,4.6,-2]);
+      addMesh(g, new THREE.CylinderGeometry(3.6,3.6,1.2,20), std(0x2a2d33), [3.2,3.2,3.6]);
+      addMesh(g, new THREE.BoxGeometry(2.6,1.2,2.6), std(0x3a3f47), [-4,3.2,3.4]);
+      addMesh(g, new THREE.BoxGeometry(6.5,.4,6.5), std(0x8d9198, {metalness:.9, roughness:.25}), [0,3.1,0]);
+      break;
+    }
+    case 'oled': {
+      addMesh(g, new THREE.BoxGeometry(27,2.6,27), std(0x174a8a, {roughness:.7}), [0,3,0]);
+      addMesh(g, new THREE.BoxGeometry(16,.8,13), std(0x0a0c10, {roughness:.35}), [-3,4.5,0]);
+      addMesh(g, new THREE.BoxGeometry(14.5,.3,11.5), std(0x2b3d55, {emissive:new THREE.Color(0x18324f), emissiveIntensity:.7}), [-3,5,0]);
+      break;
+    }
+    case 'driver': {
+      addMesh(g, new THREE.BoxGeometry(31,2.2,23), std(0xa8201f, {roughness:.75}), [0,2.6,0]);
+      addMesh(g, new THREE.CylinderGeometry(4.2,4.2,7,20), std(0x1d2a4a, {roughness:.5}), [-6,7,-4]);
+      addMesh(g, new THREE.CylinderGeometry(4.2,4.2,7,20), std(0x1d2a4a, {roughness:.5}), [1,7,-4]);
+      addMesh(g, new THREE.BoxGeometry(9,2.6,7), std(0x23252a, {roughness:.6}), [1,4.8,4]);
+      break;
+    }
+    case 'motor': {
+      addMesh(g, new THREE.BoxGeometry(17,12,12), std(0xc9a961, {metalness:.6, roughness:.4}), [4,7,0]);
+      addMesh(g, new THREE.CylinderGeometry(6,6,15,24), std(0xbfc4cb, {metalness:.9, roughness:.28}), [-9,7,0], [0,0,Math.PI/2]);
+      addMesh(g, new THREE.CylinderGeometry(1.6,1.6,10,14), std(0xd8dde3, {metalness:.9, roughness:.2}), [16,13,0]);
+      addMesh(g, new THREE.BoxGeometry(3,2,9), std(0x24262b), [-16,7,0]);
+      break;
+    }
+    case 'switch': {
+      addMesh(g, new THREE.BoxGeometry(14,6,8), std(0xcfd4da, {metalness:.8, roughness:.3}), [0,7,0]);
+      addMesh(g, new THREE.BoxGeometry(6,2.4,5), std(0x2b2e34), [0,11,0]);
+      break;
+    }
+    case 'amp': {
+      addMesh(g, new THREE.BoxGeometry(19,2.2,17), std(0x6b2a8f, {roughness:.7}), [0,2.6,0]);
+      addMesh(g, new THREE.BoxGeometry(5,1.4,5), std(0x23252a), [0,4.2,0]);
+      break;
+    }
+    case 'speaker': {
+      addMesh(g, new THREE.BoxGeometry(26,13,26), std(0x191b1f, {roughness:.85}), [0,6.5,0]);
+      addMesh(g, new THREE.CylinderGeometry(11.5,11.5,2,32), std(0x2c2f35, {roughness:.9}), [0,13.6,0]);
+      addMesh(g, new THREE.CylinderGeometry(3,1.2,3,20), std(0x101215), [0,15,0]);
+      addMesh(g, new THREE.BoxGeometry(9,1.6,4), std(0xb8873f, {metalness:.7}), [0,13.4,-11]);
+      break;
+    }
+    case 'charger': {
+      addMesh(g, new THREE.BoxGeometry(24,2.2,15), std(0x1f2228, {roughness:.7}), [0,2.6,0]);
+      addMesh(g, new THREE.BoxGeometry(9,4,7), std(0xa9adb4, {metalness:.85, roughness:.35}), [-11,4.6,0]);
+      addMesh(g, new THREE.BoxGeometry(6,4.5,6), std(0x3b3f46, {roughness:.6}), [2,5.6,-2]);
+      addMesh(g, new THREE.SphereGeometry(1.4,14,10), std(0x2fd47a, {emissive:new THREE.Color(0x1c7f45), emissiveIntensity:1}), [6,4.2,4]);
+      break;
+    }
+    case 'cell': {
+      addMesh(g, new THREE.CylinderGeometry(9, 9, 34, 28), std(0x1f66c9, {roughness:.45, metalness:.35}), [0, 0, 0]);
+      addMesh(g, new THREE.CylinderGeometry(4.4, 4.4, 1.6, 20), std(0xc9ced6, {metalness:.9}), [0, 17.3, 0]);
+      addMesh(g, new THREE.CylinderGeometry(9, 9, .8, 28), std(0x9aa1ab), [0, -17, 0]);
+      addMesh(g, new THREE.CylinderGeometry(9.1, 9.1, 1.4, 28), std(0x1b4e9c), [0, 15.6, 0]);
+      break;
+    }
+    case 'bms': {
+      addMesh(g, new THREE.BoxGeometry(21,2.2,15), std(0x1c6b4c, {roughness:.7}), [0,2.6,0]);
+      addMesh(g, new THREE.BoxGeometry(12,2,7), std(0x23272e), [0,4.6,0]);
+      addMesh(g, new THREE.BoxGeometry(6,1.2,4), std(0xc8a24a, {metalness:.7}), [5,4.2,3]);
+      break;
+    }
+    case 'fuse': {
+      addMesh(g, new THREE.BoxGeometry(12,4,5), std(0xd9912f, {roughness:.7}), [0,3.6,0]);
+      addMesh(g, new THREE.BoxGeometry(2.2,4.2,5.2), std(0xc9ced6, {metalness:.85}), [-5.3,3.6,0]);
+      addMesh(g, new THREE.BoxGeometry(2.2,4.2,5.2), std(0xc9ced6, {metalness:.85}), [5.3,3.6,0]);
+      break;
+    }
+    case 'pmos': {
+      addMesh(g, new THREE.BoxGeometry(8,2.4,8), std(0x15181d, {roughness:.55}), [0,2.6,0]);
+      addMesh(g, new THREE.BoxGeometry(5,5,.8), std(0xb8bec7, {metalness:.9, roughness:.25}), [0,5,-3.5]);
+      addMesh(g, new THREE.BoxGeometry(6,.8,5), std(0x2a2e35), [0,4.4,2]);
+      break;
+    }
+    case 'buck': {
+      addMesh(g, new THREE.BoxGeometry(20,2.2,14), std(0x194f8f, {roughness:.7}), [0,2.6,0]);
+      addMesh(g, new THREE.CylinderGeometry(4.4,4.4,4.2,20), std(0x30343b, {metalness:.4}), [-4,5.8,0], [0,0,Math.PI/2]);
+      addMesh(g, new THREE.BoxGeometry(5,4,5), std(0x22262d), [4,4.6,2]);
+      addMesh(g, new THREE.CylinderGeometry(2.2,2.2,5,14), std(0x1b2a45), [5,4.8,-3.5]);
+      break;
+    }
+    case 'pulldown': {
+      addMesh(g, new THREE.BoxGeometry(17,3,6), std(0x2a211b, {roughness:.65}), [0,3,0]);
+      for(let i = 0; i < 4; i++){
+        addMesh(g, new THREE.BoxGeometry(2.2,3.4,2.4), std(0xc9b28c, {roughness:.5}), [-6 + i * 4,3.2,0]);
+      }
+      break;
+    }
+    case 'gear': {
+      const shape = new THREE.Shape();
+      const teeth = 64, r1 = 20.4, r2 = 22.0, step = Math.PI*2/teeth;
+      const prof = [[r2,0],[r2,step*.35],[r1,step*.45],[r1,step*.85],[r2,step*.95]];
+      prof.forEach(([r,a], i) => i === 0
+        ? shape.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+        : shape.lineTo(Math.cos(a)*r, Math.sin(a)*r));
+      for(let i=1;i<teeth;i++){
+        const off = i*step;
+        prof.slice(1).forEach(([r,a]) => shape.lineTo(Math.cos(a+off)*r, Math.sin(a+off)*r));
+      }
+      shape.closePath();
+      const hole = new THREE.Path(); hole.absarc(0,0,1.6,0,Math.PI*2,true); shape.holes.push(hole);
+      const geo = new THREE.ExtrudeGeometry(shape, {depth:3.2, bevelEnabled:false});
+      geo.rotateX(-Math.PI/2);
+      addMesh(g, geo, std(0xb9bec6, {metalness:.9, roughness:.35}), [0,4.8,0]);
+      break;
+    }
+    case 'frame': {
+      const rod = new THREE.Group();
+      const plateX = 23;
+      const brass = () => std(0xc8a24a, {metalness:.9, roughness:.3});
+      const up = new THREE.Vector3(0, 1, 0);
+      const addRod = (p1, p2, mat) => {
+        const dir = p2.clone().sub(p1);
+        const len = dir.length();
+        if(len < .01) return;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(.5, .5, len, 12), mat);
+        m.position.copy(p1).add(p2).multiplyScalar(.5);
+        m.quaternion.setFromUnitVectors(up, dir.normalize());
+        m.castShadow = true;
+        m.userData = {pick:'frame', partId:'frame', baseOpacity:1};   // 杆件降级，别挡住内部器件
+        rod.add(m);
+      };
+      const plateVerts = sx => FRAME.pts.map(p => new THREE.Vector3(sx * plateX, p[1], p[0]));
+      for(const sx of [-1, 1]){
+        const pts = plateVerts(sx);
+        for(let i = 0; i < 8; i++) addRod(pts[i], pts[(i + 1) % 8], brass());
+        addRod(pts[FRAME.brace[0]], pts[FRAME.brace[1]],
+          Object.assign(std(0xff5a52, {metalness:.4, roughness:.5}), {transparent:true, opacity:.9}));
+        for(const p of pts){
+          const s = new THREE.Mesh(new THREE.SphereGeometry(.6, 12, 10), brass());
+          s.position.copy(p); s.userData.baseOpacity = 1; rod.add(s);
+        }
+      }
+      const L = plateVerts(-1), R = plateVerts(1);
+      for(let i = 0; i < 8; i++) addRod(L[i], R[i], brass());
+      g.add(rod);
+      break;
+    }
+  }
+  g.traverse(o => {
+    if(o.isMesh && !o.userData.pick){ o.userData = {pick:'part', partId:part.id}; pickables.push(o); }
+  });
+  part.pins.forEach(p => pinMesh(part, p));
+
+  const labelHtml = part.kind === 'frame'
+    ? `<b>${part.name}</b><br>58×45mm · 红=未标注斜撑`
+    : `<b>${part.name}</b>`;
+  const lbl = makeLabel(labelHtml, 'lbl part ' + part.status);
+  lbl.position.set(0, labelHeight(part), 0);
+  const holder = new THREE.Group();          // 反向旋转，让标签始终在器件"上方"而不是随姿态飞出
+  if(part.rot) holder.rotation.set(
+    THREE.MathUtils.degToRad(-part.rot[0]),
+    THREE.MathUtils.degToRad(-part.rot[1]),
+    THREE.MathUtils.degToRad(-part.rot[2]));
+  holder.add(lbl);
+  g.add(holder);
+  part._label = lbl;
+}
+function labelHeight(part){
+  return {frame:33, esp32:13, oled:19, driver:13, motor:17, switch:12,
+          amp:12, speaker:17, charger:12, cell:20, gear:11,
+          bms:12, fuse:10, pmos:12, buck:12, pulldown:10}[part.kind] || 14;
+}
+PARTS.forEach(buildPart);
+
+/* ---------- 导线 ---------- */
+function pinWorld(partId, pinName){
+  const k = partId + '|' + pinName;
+  const rec = pinIndex[k];
+  if(!rec){ console.warn('找不到引脚', k); return new THREE.Vector3(); }
+  return rec.group.localToWorld(rec.local.clone());
+}
+function dashTexture(){
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 8;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#ff2d2d'; x.fillRect(0,0,64,8);
+  x.globalAlpha = .28; x.fillStyle = '#160a0a'; x.fillRect(32,0,32,8);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+function wireCurve(a, b, spread, liftScale = 1){
+  const d = a.distanceTo(b);
+  const lift = Math.min(42, 11 + d * .38) * liftScale;
+  const mid = a.clone().add(b).multiplyScalar(.5);
+  const chord = b.clone().sub(a);
+  let perp = new THREE.Vector3().crossVectors(chord, new THREE.Vector3(0, 1, 0));
+  if(perp.lengthSq() < 1e-4) perp.set(1, 0, 0);
+  perp.normalize().multiplyScalar(spread);
+  const mk = (v, k, h) => v.clone().addScaledVector(perp, k).setY(v.y + h);
+  return new THREE.CatmullRomCurve3([
+    a,
+    mk(a.clone().lerp(mid, .30), .45, lift * .5),
+    mk(mid, 1, lift),
+    mk(b.clone().lerp(mid, .30), .45, lift * .5),
+    b
+  ]);
+}
+function spreadOf(id){
+  let h = 0;
+  for(const ch of id) h = (h * 31 + ch.charCodeAt(0)) & 1023;
+  return ((h % 7) - 3) * 2.6;                        // 同束线横向错开，避免完全重叠
+}
+function buildWire(def){
+  const a = pinWorld(def.from[0], def.from[1]);
+  const b = pinWorld(def.to[0], def.to[1]);
+  const curve = wireCurve(a, b, spreadOf(def.id));
+  const cat = CAT[def.cat];
+  const unconfirmed = def.st === 'unconfirmed' || def.st === 'review';
+  const radius = cat.r * .58;                         // 按真实杜邦线粗细（约 1mm 直径）
+  const geo = new THREE.TubeGeometry(curve, 48, radius, 10, false);
+  const col = new THREE.Color(unconfirmed ? CAT.unknown.color : def.color);
+  const mat = new THREE.MeshStandardMaterial({
+    color:col, roughness:.6, metalness:.1,
+    emissive:new THREE.Color(col).multiplyScalar(.18)
+  });
+  if(unconfirmed){
+    const t = dashTexture();
+    t.repeat.set(Math.max(2, Math.round(curve.getLength() / 14)), 1);
+    mat.map = t; mat.color = new THREE.Color(0xffffff);
+    mat.emissive = new THREE.Color(0x551111);
+  }
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData = {pick:'wire', wireId:def.id, baseOpacity:1};
+  scene.add(mesh);
+  pickables.push(mesh);
+
+  // 两端加"杜邦端头"，让每一根线都能看清是插在哪个焊盘上
+  const capMat = new THREE.MeshStandardMaterial({color:0x2b3038, roughness:.55, metalness:.15});
+  const mkCap = (t, k) => {
+    const pos = curve.getPoint(t);
+    const tan = curve.getTangent(t).normalize();
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 4.4, 12), capMat);
+    cap.position.copy(pos).addScaledVector(tan, k * 1.7);
+    cap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
+    cap.userData = {pick:'wire', wireId:def.id, baseOpacity:1};
+    scene.add(cap); pickables.push(cap);
+    return cap;
+  };
+  const capA = mkCap(0, 1), capB = mkCap(1, -1);
+
+  const lbl = makeLabel(
+    `${def.sig}<br><span style="color:${ST[def.st].color}">${ST[def.st].txt}</span>`,
+    'lbl wire ' + def.st);
+  lbl.position.copy(curve.getPoint(.5));
+  scene.add(lbl);
+
+  wireObjs.push({def, mesh, lbl, curve, radius, mat, capA, capB, capMat});
+}
+scene.updateMatrixWorld(true);   // 引脚世界坐标依赖已更新的矩阵，否则导线端点会飞走
+WIRES.forEach(buildWire);
+
+// 选中导线时在两端显示大号"器件·丝印名"标注
+const calloutA = makeLabel('', 'lbl callout');
+const calloutB = makeLabel('', 'lbl callout');
+calloutA.visible = false; calloutB.visible = false;
+scene.add(calloutA); scene.add(calloutB);
+const partName = id => (PARTS.find(p => p.id === id) || {name:id}).name;
+function updateCallouts(){
+  const s = state.selected;
+  const w = s && s.type === 'wire' ? wireObjs.find(o => o.def.id === s.id) : null;
+  if(!w){ calloutA.visible = false; calloutB.visible = false; return; }
+  const a = w.curve.getPoint(0), b = w.curve.getPoint(1);
+  calloutA.element.innerHTML = `${partName(w.def.from[0])} <em>· ${w.def.from[1]}</em>`;
+  calloutB.element.innerHTML = `${partName(w.def.to[0])} <em>· ${w.def.to[1]}</em>`;
+  calloutA.position.copy(a).setY(a.y + 6);
+  calloutB.position.copy(b).setY(b.y + 6);
+  calloutA.visible = true; calloutB.visible = true;
+}
+function focusOn(points, dist){
+  const c = new THREE.Vector3();
+  points.forEach(p => c.add(p));
+  c.divideScalar(points.length);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  controls.target.copy(c);
+  camera.position.copy(c).addScaledVector(dir, dist || 140);
+  controls.update();
+}
+
+/* ---------- 自适应取景：按实际投影范围放进画面 ---------- */
+function fitBox(box, dir, fill = .82){
+  const center = box.getCenter(new THREE.Vector3());
+  const right = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+  const up = new THREE.Vector3().crossVectors(dir, right).normalize();
+  const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const tanX = tanY * camera.aspect;
+  let dist = controls.minDistance;
+  for(const x of [box.min.x, box.max.x])
+    for(const y of [box.min.y, box.max.y])
+      for(const z of [box.min.z, box.max.z]){
+        const d = new THREE.Vector3(x, y, z).sub(center);
+        const depth = d.dot(dir);
+        dist = Math.max(dist,
+          depth + Math.abs(d.dot(up)) / (tanY * fill),
+          depth + Math.abs(d.dot(right)) / (tanX * fill));
+      }
+  dist += 8;
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(dir, dist);
+  scene.fog.near = dist * 1.2;
+  scene.fog.far = dist * 3.4;
+  controls.maxDistance = Math.max(2600, dist * 2.2);
+  controls.update();
+}
+function fitView(){
+  const box = new THREE.Box3();
+  Object.values(partGroups).forEach(g => box.expandByObject(g));
+  const dir = state.layout === 'bench' ? [-.08, .88, .84] : [-.9, .72, -1.15];
+  fitBox(box, new THREE.Vector3(...dir).normalize());
+}
+
+/* ============================ 交互 ============================ */
+const state = {transparent:false, layout:'bench', labels:true, pinLabels:0, physical:true,
+  onlyBad:false, filter:'all', selected:null};
+const WIRED_PINS = new Set();
+WIRES.forEach(w => { WIRED_PINS.add(w.from.join('|')); WIRED_PINS.add(w.to.join('|')); });
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const tip = document.getElementById('tip');
+
+function relatedOf(sel){
+  const parts = new Set(), wires = new Set(), pins = new Set();
+  if(!sel) return {parts, wires, pins};
+  if(sel.type === 'part'){
+    parts.add(sel.id);
+    WIRES.forEach(w => {
+      if(w.from[0] === sel.id || w.to[0] === sel.id){
+        wires.add(w.id); parts.add(w.from[0]); parts.add(w.to[0]);
+        pins.add(w.from.join('|')); pins.add(w.to.join('|'));
+      }
+    });
+  } else if(sel.type === 'wire'){
+    const w = WIRES.find(x => x.id === sel.id);
+    wires.add(w.id); parts.add(w.from[0]); parts.add(w.to[0]);
+    pins.add(w.from[0] + '|' + w.from[1]); pins.add(w.to[0] + '|' + w.to[1]);
+  } else if(sel.type === 'pin'){
+    parts.add(sel.partId); pins.add(sel.partId + '|' + sel.name);
+    WIRES.forEach(w => {
+      if(w.from[0] === sel.partId && w.from[1] === sel.name || w.to[0] === sel.partId && w.to[1] === sel.name){
+        wires.add(w.id); parts.add(w.from[0]); parts.add(w.to[0]);
+      }
+    });
+  }
+  return {parts, wires, pins};
+}
+
+function applyEmphasis(){
+  const sel = state.selected;
+  const {parts, wires, pins} = relatedOf(sel);
+  const focus = !!sel;
+  const onlyBad = state.onlyBad;
+  const selPartId = sel ? (sel.type === 'part' ? sel.id : (sel.type === 'pin' ? sel.partId : null)) : null;
+
+  PARTS.forEach(p => {
+    const g = partGroups[p.id];
+    const dim = (focus && !parts.has(p.id)) || (onlyBad && p.status === 'confirmed');
+    g.traverse(o => {
+      if(!o.isMesh) return;
+      const m = o.material;
+      if(!m[ORIG]) m[ORIG] = {c:m.color.clone(), e:m.emissive ? m.emissive.clone() : null, op:m.opacity, tr:m.transparent};
+      const hot = focus && parts.has(p.id) && sel && sel.type === 'part' && sel.id === p.id;
+      m.transparent = state.transparent || dim || m[ORIG].tr;
+      m.opacity = dim ? .12 : (state.transparent ? .22 : m[ORIG].op);
+      m.depthWrite = !(m.transparent && m.opacity < .9);
+      if(m.emissive){
+        m.emissive.copy(hot ? new THREE.Color(0x2a4a2a) : m[ORIG].e);
+        if(dim) m.emissive.setScalar(0);
+      }
+    });
+    if(p._label) p._label.visible = state.labels && !dim &&
+      ((!focus && state.layout === 'bench') || selPartId === p.id);
+  });
+
+  Object.entries(pinIndex).forEach(([k, rec]) => {
+    const m = rec.mesh.material;
+    if(!m[ORIG]) m[ORIG] = {c:m.color.clone(), e:m.emissive.clone(), op:1, tr:false};
+    const dim = focus && !parts.has(k.split('|')[0]);
+    m.transparent = state.transparent || dim;
+    m.opacity = dim ? .15 : (state.transparent ? .3 : 1);
+    m.emissive.copy(dim ? new THREE.Color(0) : m[ORIG].e);
+    rec.label.visible = state.pinLabels > 0 && (state.layout === 'bench' || focus) &&
+      (!focus || pins.has(k)) &&
+      (state.pinLabels === 2 || WIRED_PINS.has(k) || k.split('|')[0] === selPartId);
+  });
+
+  wireObjs.forEach(w => {
+    const m = w.mat;
+    if(!m[ORIG]) m[ORIG] = {c:m.color.clone(), e:m.emissive.clone(), op:1, tr:false};
+    const dim = (focus && !wires.has(w.def.id)) || (onlyBad && !(w.def.st === 'unconfirmed' || w.def.st === 'review'));
+    const cat = CAT[w.def.cat];
+    const useCat = !state.physical && !(w.def.st === 'unconfirmed' || w.def.st === 'review');
+    const base = new THREE.Color(useCat ? cat.color : (w.def.st === 'unconfirmed' || w.def.st === 'review' ? 0xffffff : w.def.color));
+    if(m.map){ m.color.copy(base); m.emissive.copy(new THREE.Color(0x661a16)); }
+    else { m.color.copy(base); m.emissive.copy(new THREE.Color(base).multiplyScalar(.2)); }
+    m.transparent = state.transparent || dim;
+    m.opacity = dim ? .07 : (state.transparent ? .8 : 1);
+    m.depthWrite = !dim;
+    w.capMat.transparent = true;
+    w.capMat.opacity = dim ? .08 : .95;
+    w.lbl.visible = state.pinLabels && focus && wires.has(w.def.id);
+    const scale = focus && wires.has(w.def.id) ? 1.9 : 1;
+    w.mesh.scale.setScalar(1);
+    w.mesh.geometry.dispose();
+    w.mesh.geometry = tubeFor(w, scale);
+  });
+}
+function tubeFor(w, scale){
+  const g = new THREE.TubeGeometry(w.curve, 48, w.radius * scale, 10, false);
+  if(w.mat.map){
+    w.mat.map.repeat.set(Math.max(2, Math.round(w.curve.getLength() / 14)), 1);
+    w.mat.map.needsUpdate = true;
+  }
+  return g;
+}
+
+/* ---------- 两个视图：接线视图（器件摊开）/ 装配视图（整机原样） ---------- */
+const BENCH = {
+  frame:[-390, 0, 40],
+  esp32:[-190, 0, -115], driver:[-30, 0, -115], amp:[140, 0, -115],
+  oled:[-270, 0, 45], switch:[-120, 0, 55], charger:[10, 0, 55], speaker:[180, 0, 60],
+  motorR:[-245, 0, 190], motorL:[-85, 0, 195], battery1:[85, 0, 180], battery2:[200, 0, 180],
+  gear1:[-390, 0, -190], gear2:[-255, 0, -190],
+  bms:[85, 0, 90], fuse:[285, 0, 30], pmos:[-20, 0, 105],
+  buck:[100, 0, 20], pulldown:[-125, 0, -25]
+};
+function refreshWires(){
+  scene.updateMatrixWorld(true);
+  const up = new THREE.Vector3(0, 1, 0);
+  wireObjs.forEach(w => {
+    const a = pinWorld(w.def.from[0], w.def.from[1]);
+    const b = pinWorld(w.def.to[0], w.def.to[1]);
+    w.curve = wireCurve(a, b, spreadOf(w.def.id), state.layout === 'bench' ? 1 : .28);
+    w.mesh.geometry.dispose();
+    w.mesh.geometry = tubeFor(w, 1);
+    w.lbl.position.copy(w.curve.getPoint(.5));
+    const t0 = w.curve.getTangent(0).normalize(), t1 = w.curve.getTangent(1).normalize();
+    w.capA.position.copy(w.curve.getPoint(0)).addScaledVector(t0, 1.7);
+    w.capA.quaternion.setFromUnitVectors(up, t0);
+    w.capB.position.copy(w.curve.getPoint(1)).addScaledVector(t1, -1.7);
+    w.capB.quaternion.setFromUnitVectors(up, t1);
+  });
+  updateCallouts();
+}
+function applyLayout(){
+  const bench = state.layout === 'bench';
+  PARTS.forEach(p => {
+    const g = partGroups[p.id];
+    const pos = bench ? (BENCH[p.id] || p.pos) : p.pos;
+    const rot = bench ? [0, 0, 0] : (p.rot || [0, 0, 0]);
+    g.position.set(pos[0], pos[1], pos[2]);
+    g.userData.home.copy(g.position);
+    g.rotation.set(THREE.MathUtils.degToRad(rot[0]),
+                   THREE.MathUtils.degToRad(rot[1]),
+                   THREE.MathUtils.degToRad(rot[2]));
+  });
+  refreshWires();
+  fitView();
+  applyEmphasis();
+}
+
+/* ---------- 拾取 ---------- */
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY}; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if(!down) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+  down = null;
+  if(moved > 6) return;
+  const hit = pick(e.clientX, e.clientY);
+  select(hit ? hit.sel : null);
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  const hit = pick(e.clientX, e.clientY, true);
+  renderer.domElement.style.cursor = hit ? 'pointer' : 'default';
+  if(hit){
+    tip.style.display = 'block';
+    tip.style.left = Math.min(innerWidth - 270, e.clientX + 12) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
+    tip.innerHTML = hit.title;
+  } else tip.style.display = 'none';
+});
+function pick(cx, cy, hover){
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(pickables, false).filter(h => h.object.userData.pick);
+  // 优先级：焊盘/线 > 器件 > 框架杆，避免笼架挡住内部器件
+  const rank = u => u.pick === 'frame' ? 3 : (u.pick === 'part' ? 2 : 1);
+  let best = null;
+  for(const h of hits){
+    if(!best || rank(h.object.userData) < rank(best.object.userData)) best = h;
+    if(rank(best.object.userData) === 1) break;
+  }
+  if(!best) return null;
+  const u = best.object.userData;
+  if(state.onlyBad && u.pick === 'part'){
+    const p = PARTS.find(x => x.id === u.partId);
+    if(p && p.status === 'confirmed' && u.partId !== 'frame') return null;
+  }
+  if(u.pick === 'part' || u.pick === 'frame')
+    return {sel:{type:'part', id:u.partId}, title:PARTS.find(p => p.id === u.partId).name};
+  if(u.pick === 'pin')
+    return {sel:{type:'pin', partId:u.partId, name:u.pin}, title:`${u.partId} · ${u.pin}`};
+  if(u.pick === 'wire'){
+    const w = WIRES.find(x => x.id === u.wireId);
+    return {sel:{type:'wire', id:w.id},
+      title:`${w.sig}<br>${w.from.join('.')} → ${w.to.join('.')}`};
+  }
+  return null;
+}
+
+function select(sel, opt){
+  state.selected = sel;
+  applyEmphasis();
+  updateCallouts();
+  if(sel && opt && opt.focus){
+    if(sel.type === 'wire'){
+      const w = wireObjs.find(o => o.def.id === sel.id);
+      if(w){
+        const box = new THREE.Box3();
+        for(let i = 0; i <= 32; i++) box.expandByPoint(w.curve.getPoint(i / 32));
+        box.expandByScalar(8);
+        fitBox(box, camera.position.clone().sub(controls.target).normalize(), .58);
+      }
+    } else if(sel.type === 'part' || sel.type === 'pin'){
+      const pid = sel.type === 'part' ? sel.id : sel.partId;
+      const g = partGroups[pid];
+      if(g) focusOn([g.userData.home.clone()], 150);
+    }
+  }
+  renderDetail();
+  renderList();
+}
+
+/* ============================ 侧栏 ============================ */
+const FILTERS = [['all','全部'],['confirmed','已确认'],['review','需核对'],
+                 ['unconfirmed','未确认'],['optional','可选/未接入']];
+const tabs = document.getElementById('tabs');
+FILTERS.forEach(([k, t]) => {
+  const b = document.createElement('div');
+  b.className = 'tab' + (k === 'all' ? ' on' : '');
+  b.textContent = t;
+  b.onclick = () => {
+    state.filter = k;
+    [...tabs.children].forEach(c => c.classList.remove('on'));
+    b.classList.add('on');
+    renderList();
+  };
+  tabs.appendChild(b);
+});
+
+function passFilter(st){ return state.filter === 'all' || state.filter === st; }
+
+function renderDetail(){
+  const el = document.getElementById('detail');
+  const s = state.selected;
+  if(!s){
+    const intro = MODE === 'safe'
+      ? `当前为<b style="color:var(--ok)">安全参考接法</b>：双节并联 1S → 保护 → 3A 保险 → 5V 模块 → P-MOS。电机走独立 3V 降压，控制脚避开 GPIO2/8/9。<br>
+         点左侧任意导线可逐条查看两端连接。侧栏的红色项是仍需实物确认的安全前提。`
+      : `接线视图默认收起接口名，避免遮挡；点左侧清单里任意一根线 → 相机对准、两端显示"器件 · 引脚"，可逐条上下翻。<br>
+         需要总览时可点顶部"接口名"。红色虚线 = 未确认或需核对，<b>不得当作已核实结论</b>。顶部"接线视图 / 装配视图"按钮可切换整机。`;
+    el.innerHTML = `<div style="color:var(--dim)">${intro}</div>`;
+    return;
+  }
+  if(s.type === 'wire'){
+    const w = WIRES.find(x => x.id === s.id);
+    const idx = WIRES.findIndex(x => x.id === s.id);
+    const pf = partName(w.from[0]), pt = partName(w.to[0]);
+    el.innerHTML = `<div class="kv"><span>信号</span><b>${w.sig}</b></div>
+      <div class="kv"><span>起点</span>${pf} · <b style="color:#9fc4ff">${w.from[1]}</b></div>
+      <div class="kv"><span>终点</span>${pt} · <b style="color:#9fc4ff">${w.to[1]}</b></div>
+      <div class="kv"><span>类别</span>${CAT[w.cat].txt}</div>
+      <div class="kv"><span>状态</span><span style="color:${ST[w.st].color}">${ST[w.st].txt}</span></div>
+      <div class="kv"><span>实物线色</span><span style="display:inline-block;width:26px;height:10px;
+        border-radius:3px;background:${w.color};border:1px solid #0006"></span>${w.color}</div>
+      <div class="kv" style="align-items:center"><span>逐条核对</span>
+        <span style="color:var(--dim)">${idx + 1} / ${WIRES.length}</span>
+        <button class="btn" id="wPrev" style="padding:1px 7px;font-size:11px">‹ 上一条</button>
+        <button class="btn" id="wNext" style="padding:1px 7px;font-size:11px">下一条 ›</button></div>
+      <div class="ev" style="color:#9fb4cd;margin-top:6px;line-height:1.55">${w.ev}</div>`;
+    const go = step => select({type:'wire', id:WIRES[(idx + step + WIRES.length) % WIRES.length].id}, {focus:true});
+    el.querySelector('#wPrev').onclick = () => go(-1);
+    el.querySelector('#wNext').onclick = () => go(1);
+    return;
+  }
+  if(s.type === 'part' || s.type === 'pin'){
+    const pid = s.type === 'part' ? s.id : s.partId;
+    const p = PARTS.find(x => x.id === pid);
+    const conn = WIRES.filter(w => w.from[0] === pid || w.to[0] === pid);
+    el.innerHTML = `<div class="kv"><span>器件</span><b>${p.name}</b></div>
+      <div class="kv"><span>状态</span><span style="color:${ST[p.status].color}">${ST[p.status].txt}</span></div>
+      ${s.type === 'pin' ? `<div class="kv"><span>引脚</span><b>${s.name}</b></div>` : ''}
+      <div class="kv"><span>说明</span><span style="line-height:1.5">${p.note}</span></div>
+      <div class="kv"><span>接线</span>${conn.length} 根</div>
+      ${p.pins.length ? `<div class="kv"><span>接口</span><span style="line-height:1.65;color:#bcd3ee">
+        ${p.pins.map(x => x.n).join(' · ')}</span></div>` : ''}
+      <div class="conn">${conn.map(w => {
+        const other = w.from[0] === pid ? w.to : w.from;
+        const on = w.from[0] === pid ? w.from[1] : w.to[1];
+        return `<div data-w="${w.id}">· ${w.sig} <span style="color:var(--dim)">${on} → ${other.join('·')}</span>
+          <span style="color:${ST[w.st].color}">［${ST[w.st].txt}］</span></div>`;
+      }).join('')}</div>`;
+    el.querySelectorAll('[data-w]').forEach(d => {
+      d.onclick = () => select({type:'wire', id:d.dataset.w});
+    });
+  }
+}
+
+function renderList(){
+  const el = document.getElementById('list');
+  const sel = state.selected;
+  const wires = WIRES.filter(w => passFilter(w.st));
+  const parts = PARTS.filter(p => passFilter(p.status));
+  const html = [];
+  html.push('<div class="sec">待核对 / 未确认清单（含原图依据）</div>');
+  WARNINGS.filter(w => passFilter(w.st)).forEach((w, i) => {
+    html.push(`<div class="item" style="cursor:default">
+      <div class="t"><span class="dot" style="background:${ST[w.st].color}"></span>${w.t}
+        <span class="tag ${w.st}">${ST[w.st].txt}</span></div>
+      <div class="ev">${w.d}</div></div>`);
+  });
+  html.push('<div class="sec">接线逻辑自检（电气合理性，不是照抄图面）</div>');
+  const LV = {risk:{c:'var(--warn)', t:'风险'}, ok:{c:'var(--ok)', t:'通过'}, wait:{c:'var(--review)', t:'待定'}};
+  LOGIC.forEach(l => {
+    html.push(`<div class="item" style="cursor:default">
+      <div class="t"><span class="dot" style="background:${LV[l.lv].c}"></span>${l.t}
+        <span class="tag" style="color:${LV[l.lv].c};border-color:${LV[l.lv].c}">${LV[l.lv].t}</span></div>
+      <div class="ev">${l.d}</div></div>`);
+  });
+  html.push('<div class="sec">导线核对（点击在场景中定位）</div>');
+  wires.forEach(w => {
+    const on = sel && sel.type === 'wire' && sel.id === w.id;
+    html.push(`<div class="item ${on ? 'sel' : ''}" data-wire="${w.id}">
+      <div class="t"><span class="dot" style="background:${w.color}"></span>${w.id} · ${w.sig}
+        <span class="tag ${w.st}">${ST[w.st].txt}</span></div>
+      <div class="m">${partName(w.from[0])} · <b>${w.from[1]}</b> → ${partName(w.to[0])} · <b>${w.to[1]}</b> ｜ ${CAT[w.cat].txt}</div>
+      <div class="ev">${w.ev}</div></div>`);
+  });
+  html.push('<div class="sec">器件</div>');
+  parts.forEach(p => {
+    const on = sel && sel.type === 'part' && sel.id === p.id;
+    html.push(`<div class="item ${on ? 'sel' : ''}" data-part="${p.id}">
+      <div class="t"><span class="dot" style="background:${ST[p.status].color}"></span>${p.name}
+        <span class="tag ${p.status}">${ST[p.status].txt}</span></div>
+      <div class="m">引脚 ${p.pins.length} 个 ｜ ${WIRES.filter(w => w.from[0] === p.id || w.to[0] === p.id).length} 根线</div>
+      <div class="ev">${p.note}</div></div>`);
+  });
+  el.innerHTML = html.join('');
+  el.querySelectorAll('[data-wire]').forEach(d => {
+    d.onclick = () => select({type:'wire', id:d.dataset.wire}, {focus:true});
+  });
+  el.querySelectorAll('[data-part]').forEach(d => {
+    d.onclick = () => select({type:'part', id:d.dataset.part}, {focus:true});
+  });
+}
+
+/* ---------- 图例 ---------- */
+document.getElementById('legendRows').innerHTML = Object.entries(CAT).map(([k, c]) =>
+  `<div class="row"><span class="sw${c.dash ? ' dash' : ''}" style="border-top-color:${c.color};
+    border-top-width:${Math.round(c.r * 3)}px"></span>${c.txt}</div>`).join('') +
+  `<div class="row" style="margin-top:8px;color:var(--dim)">线宽=类别；点"实物线色"可切换配色口径</div>`;
+
+/* ---------- 工具栏 ---------- */
+const bind = (id, key, after) => {
+  const b = document.getElementById(id);
+  b.onclick = () => {
+    state[key] = !state[key];
+    b.classList.toggle('on', state[key]);
+    if(after) after(state[key]);
+    applyEmphasis();
+  };
+};
+bind('bTrans', 'transparent');
+document.getElementById('bExp').onclick = () => {
+  state.layout = state.layout === 'bench' ? 'assembly' : 'bench';
+  const b = document.getElementById('bExp');
+  b.textContent = state.layout === 'bench' ? '接线视图' : '装配视图';
+  b.classList.toggle('on', state.layout === 'bench');
+  applyLayout();
+};
+bind('bLbl', 'labels');
+document.getElementById('bPin').onclick = () => {
+  state.pinLabels = (state.pinLabels + 1) % 3;
+  const b = document.getElementById('bPin');
+  b.textContent = ['接口名：关', '接口名：有线', '接口名：全部'][state.pinLabels];
+  b.classList.toggle('on', state.pinLabels > 0);
+  applyEmphasis();
+};
+bind('bColor', 'physical', v => {
+  document.getElementById('bColor').textContent = v ? '实物线色' : '类别配色';
+});
+bind('bBad', 'onlyBad');
+document.getElementById('bReset').onclick = () => fitView();
+
+const modeBtn = document.getElementById('bMode');
+if(MODE === 'safe'){
+  modeBtn.textContent = '返回原图接法';
+  modeBtn.classList.add('on');
+  modeBtn.classList.remove('warn');
+  document.title = '桌面机器人 · 安全参考接线';
+  document.querySelector('#hud h1').textContent = '桌面机器人 · 安全参考接线';
+}else{
+  modeBtn.textContent = '安全接法';
+}
+modeBtn.onclick = () => {
+  location.search = MODE === 'safe' ? '' : '?mode=safe';
+};
+
+const side = document.getElementById('side'), mask = document.getElementById('mask');
+document.getElementById('sideToggle').onclick = () => {
+  side.classList.toggle('open'); mask.classList.toggle('show', side.classList.contains('open'));
+};
+document.getElementById('sideClose').onclick = () => {
+  side.classList.remove('open'); mask.classList.remove('show');
+};
+mask.onclick = () => { side.classList.remove('open'); mask.classList.remove('show'); };
+
+let desktopLayout = innerWidth > 820;
+if(desktopLayout) side.classList.add('open');
+let lastAspect = camera.aspect;
+addEventListener('resize', () => {
+  const desktop = innerWidth > 820;
+  if(desktop !== desktopLayout){
+    desktopLayout = desktop;
+    side.classList.toggle('open', desktop);
+    mask.classList.remove('show');
+  }
+  const a = sizeViews();
+  if(!isFinite(lastAspect) || Math.abs(a - lastAspect) > .08){ lastAspect = a; fitView(); }
+});
+// 侧栏抽屉/浏览器面板展开时窗口不一定触发 resize，用 ResizeObserver 兜底
+if(window.ResizeObserver){
+  new ResizeObserver(() => {
+    const a = sizeViews();
+    if(!isFinite(lastAspect) || Math.abs(a - lastAspect) > .02){ lastAspect = a; fitView(); }
+  }).observe(document.getElementById('scene'));
+}
+
+applyLayout();
+renderDetail();
+renderList();
+
+let last = performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  last = performance.now();
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+loop();
+</script>
+</body>
+</html>

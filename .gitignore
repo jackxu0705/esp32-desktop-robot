@@ -1,0 +1,30 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== 本地工具链（esptool 等独立安装目录，不入库）=====
+.flash-tools/
+.workbuddy/
+
+# ===== 第三方固件 / 刷机工具 / 压缩包（体积大且有版权，README 说明获取方式）=====
+达文西君-固件资料/
+*.bin
+*.exe
+*.zip
+*.rar
+*.hd
+
+# ===== 媒体与运行日志 =====
+*.mp4
+flash_log.txt
+VIDEO-EXTRACT-REQUEST.md
+
+# ===== 系统/编辑器杂项 =====
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
